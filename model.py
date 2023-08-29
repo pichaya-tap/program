@@ -40,7 +40,7 @@ class Critic3d(nn.Module):
         flattened = torch.flatten(x, start_dim=2)
         # Reshape the tensor to [N, 1]
         out = flattened.view(conditional_input.shape[0] , -1) # conditional_input.shape[0] number of data in that batch
-        linear = nn.Linear(out.shape[1],1).to(out.device)      
+        linear = nn.Linear(out.shape[1],1)     
         return linear(out)
 
 
@@ -145,8 +145,7 @@ class Generator(nn.Module):
 
 
 
-def initialize_weights(model):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def initialize_weights(model, device):
     for m in model.modules():
         if isinstance(m, (nn.Conv3d, nn.ConvTranspose3d, nn.BatchNorm3d)):
             m.weight.data = torch.randn(m.weight.data.shape).to(device)

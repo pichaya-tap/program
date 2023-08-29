@@ -71,9 +71,9 @@ target_dir_path.mkdir(parents=True,exist_ok=True)
 #######################################################################
 ########################### INITIALIZE MODELS ##########################
 gen = Generator().to(device)
-#initialize_weights(gen)
+initialize_weights(gen, device)
 critic = Critic3d().to(device)
-#initialize_weights(critic)
+initialize_weights(critic, device)
 
 #noise = torch.randn((1,100,16,16,8)).to(device) #Will be fed to generator's bottle neck
 #summary(gen, input_size=[(1,2, 256, 256, 128),(1,100,16,16,8)]) # do a test pass through of an example input size 
