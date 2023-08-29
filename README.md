@@ -23,26 +23,28 @@ https://arxiv.org/abs/2202.07077
 
 # METHOD
 
-Simulated dataset is already available from MC simulation and digital head phantoms, which are
-    • 3D matrix of the energy deposition of the carbon ion beam in a head phantom.
-    • 3D matrix of the energy deposition of the carbon ion beam in a water phantom.
-    • 3D representation of a material density matrix of phantom
-   
+Simulated dataset is already available from MC simulation and digital head phantoms, which are  
+    • 3D matrix of the energy deposition of the carbon ion beam in a head phantom.  
+    • 3D matrix of the energy deposition of the carbon ion beam in a water phantom.  
+    • 3D representation of a material density matrix of phantom  
+       
 Investigating WGAN model training strategies and optimization of the network.
 Use delta index and passing rate (1%) for model’s performance measurement of the prediction quality 
 
 # MODEL ARCHITECTURE
 
-The Generator network incorporates a 3D-UNet architecture and a conditional element to generate  3D images.
-It is composed of 
-	• Encoder the 3D images with multiple strided 3D convolutions into low-dimensional representations  
-	• Concatenated with 100 values of random noise drawn from a Gaussian distribution 
-	• Decoder with 3D up-samplings with subsequent convolutions.
- 	• Skip connections to pass information from the same level of the encoder to the same level of the decoder 
+The Generator network incorporates a 3D-UNet architecture and a conditional element to generate 3D images.  
+It is composed of  
+	- Encoder the 3D images with multiple strided 3D convolutions into low-dimensional representations  
+  	- Concatenated with 100 values of random noise drawn from a Gaussian distribution  
+   	- Decoder with 3D up-samplings with subsequent convolutions  
+     	- Skip connections to pass information from the same level of the encoder to the same level of the decoder  
+        
 The generator network takes both a random noise vector and a conditional input. 
 Each convolutional layers consists of 64 ﬁlters of variable size, activated using the Swish function,
 stabilized using batch normalization, regularized using dropout with a rate of 15%
-Output = 3D matrix of energy depositions of specific size
+Output = 3D matrix of energy depositions of specific size  
+
 
 The Critic network structure is simple 3D convolutional network. It receives both the generated images and the corresponding conditional input. The three input matrices are concatenated and passed through 6 transposed 3D convolutions, 
 activated using the Swish function, regularized using dropout with a rate of 15%
