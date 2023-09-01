@@ -64,12 +64,15 @@ def train_step(gen,
         # Update critics = CRITIC_ITERATIONS times before update the generator
         for _ in range(CRITIC_ITERATIONS): 
             print('Training Critic')
-            noise = torch.randn(cur_batch_size, 100, 16, 16, 8).float().to(device) 
+            # noise = torch.randn(cur_batch_size, 100, 32, 32, 16).float().to(device) 
             # Forward pass
-            critic_real = critic(real, cond).reshape(-1)
-            fake = gen(cond, noise)            
-            critic_fake = critic(fake, cond).reshape(-1)
-            gp = gradient_penalty(critic, real, fake, cond, device=device)
+            fake = gen(cond, cur_batch_size)  
+            critic_real = critic(real, cond).reshape(-1)                 
+            critic_fake = critic(fake, cond).reshape(-1)     
+            if not LAMBDA_GP ==0:
+                gp = gradient_penalty(critic, real, fake, cond, device=device)
+            else:gp=0
+            
             # Calculate  and accumulate loss
             loss_critic = (
                 -(torch.mean(critic_real)- torch.mean(critic_fake)) + LAMBDA_GP*gp
@@ -77,7 +80,12 @@ def train_step(gen,
             # Optimizer zero grad
             critic.zero_grad()
             # Loss backward
-            loss_critic.backward(retain_graph=True) # able to reuse
+            loss_critic.backward(retain_graph=False) # True, able to reuse
+            #Weight clippling # add this to restrict the gradients to prevent them from becoming too large
+            if LAMBDA_GP ==0:
+                for p in critic.parameters():
+                    p.data.clamp_(-0.001, 0.001)
+
             # Optimizer step
             opt_critic.step() 
             # Accumulate metric across all interations
@@ -87,8 +95,8 @@ def train_step(gen,
         ########## Train Generator: min -E[critic(gen_fake)] ##########
         ###############################################################
         print('Training Generator')
-        #noise = torch.randn(cur_batch_size, Z_DIM, 16, 16,8).to(device)
-        #fake = gen(cond, noise) #reuse the fake tensor
+        noise = torch.randn(cur_batch_size, 100,  32, 32, 16).to(device)
+        fake = gen(cond, noise) #reuse the fake tensor
         output = critic(fake, cond).reshape(-1)
         loss_gen = -torch.mean(output)
         # Optimizer zero grad
