@@ -42,7 +42,10 @@ def train_step(gen,
         (epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate_1).
     """
     gc.collect()
-    # Setup train performance metrics values
+    # Put model in train mode
+    gen.train()
+    critic.train()
+    # Initialize train performance metrics values
     sum_loss_gen = 0
     sum_loss_critic =0
     sum_passing_rate_1 =0
@@ -55,6 +58,7 @@ def train_step(gen,
         # Send data to target device
         # Use .float() because of RuntimeError: expected scalar type Double but found Float
         real = real.float().to(device) 
+        
         cond = cond.float().to(device) 
         cur_batch_size = real.shape[0]
 
@@ -63,30 +67,31 @@ def train_step(gen,
         ########## equivalent to minimizing the negative of that #################
         # Update critics = CRITIC_ITERATIONS times before update the generator
         for _ in range(CRITIC_ITERATIONS): 
-            print('Training Critic')
+            # print('Training Critic')
             # noise = torch.randn(cur_batch_size, 100, 32, 32, 16).float().to(device) 
             # Forward pass
-            fake = gen(cond, cur_batch_size)  
+            fake = gen(cond)  
             critic_real = critic(real, cond).reshape(-1)                 
             critic_fake = critic(fake, cond).reshape(-1)     
             if not LAMBDA_GP ==0:
                 gp = gradient_penalty(critic, real, fake, cond, device=device)
+                
             else:gp=0
             
             # Calculate  and accumulate loss
             loss_critic = (
                 -(torch.mean(critic_real)- torch.mean(critic_fake)) + LAMBDA_GP*gp
                 )
-            # Optimizer zero grad
+            # Optimizer zero grad to zero out any previously accumulated gradients
             critic.zero_grad()
-            # Loss backward
+            # Perform backpropagation
             loss_critic.backward(retain_graph=False) # True, able to reuse
             #Weight clippling # add this to restrict the gradients to prevent them from becoming too large
             if LAMBDA_GP ==0:
                 for p in critic.parameters():
                     p.data.clamp_(-0.001, 0.001)
 
-            # Optimizer step
+            # Optimizer step to update model parameters
             opt_critic.step() 
             # Accumulate metric across all interations
             sum_loss_critic += float(loss_critic)
@@ -94,9 +99,9 @@ def train_step(gen,
 
         ########## Train Generator: min -E[critic(gen_fake)] ##########
         ###############################################################
-        print('Training Generator')
-        noise = torch.randn(cur_batch_size, 100,  32, 32, 16).to(device)
-        fake = gen(cond, noise) #reuse the fake tensor
+        #print('Training Generator')
+        
+        fake = gen(cond) #reuse the fake tensor
         output = critic(fake, cond).reshape(-1)
         loss_gen = -torch.mean(output)
         # Optimizer zero grad
@@ -119,17 +124,17 @@ def train_step(gen,
 
 
         # Print losses occasionally and print to tensorboard
-        if batch_idx == 0: # To change to some number
-            print(f"Batch {batch_idx}/{len(train_loader)} \
+        print(f"Batch {batch_idx}/{len(train_loader)} \
                     Loss D: {loss_critic:.4f}, loss G: {loss_gen:.4f}")           
-            print(f"Train passing rate(1%) :{passing_rate_1:.2f}") 
-
+        print(f"Train passing rate(1%) :{passing_rate_1:.6f}") 
+        if batch_idx == 0: # To change to some number
             with torch.no_grad():
                 print(f'add image to tensor board for step {step_real}')
                 step_real = plot_dosemap(real, writer_real, step_real)# step to see the progression
                 step_fake = plot_dosemap(fake, writer_fake, step_fake)
       
-
+    print("sum_loss_gen :",sum_loss_gen, "len(train_loader) :", len(train_loader))
+    print("sum_loss_critic :",sum_loss_critic)
     # Calculate loss per epoch
     epoch_loss_gen = sum_loss_gen/len(train_loader)
     epoch_loss_critic = sum_loss_critic/ (len(train_loader)*CRITIC_ITERATIONS)
@@ -169,15 +174,16 @@ def val_step(gen,
     
     # Turn on inference context manager
     with torch.inference_mode():
-        # Loop through DataLoader batches
+        # Loop over the validation set
         for batch_idx, (real, cond) in enumerate(val_loader): 
-            print(f"Processing val batch {batch_idx}")
+            # print(f"Processing val batch {batch_idx}")
+            # send the input to the device
             real = real.float().to(device) #RuntimeError: expected scalar type Double but found Float
             cond = cond.float().to(device) #RuntimeError: expected scalar type Double but found Float
             cur_batch_size = real.shape[0]
             noise = torch.randn(cur_batch_size, 100, 16, 16,8).float().to(device)
             # Forward pass
-            fake = gen(cond, noise)
+            fake = gen(cond)
 
             # Calculate and accumulate passing rate
             delta =(fake - real)/ real.max() #δ = (Dgen − Dsim)/ Dmax sim
@@ -190,7 +196,7 @@ def val_step(gen,
             # Print passing rate occasionally and # to do ...print to tensorboard
             print(
                 f"Batch {batch_idx}/{len(val_loader)} \
-                    Val passing rate 1%: {passing_rate_1:.4f}"
+                    Val passing rate 1%: {passing_rate_1:.6f}"
             )
                       
 
