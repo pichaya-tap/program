@@ -10,12 +10,15 @@ from datetime import datetime
 from pathlib import Path
 #import torchinfo    
 #from torchinfo import summary
+import time
+from tqdm import tqdm
 
 from dataloader import CustomDataset, split
 from model import Critic3d, Generator, initialize_weights
 from engine import train_step, val_step
 from utils import update
-
+######################################################################
+torch.autograd.set_detect_anomaly(True)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print('Device :',device)
@@ -23,13 +26,13 @@ print('Device :',device)
 torch.backends.cudnn.enabled=True # comment BatchNorm1d -> CUDNN_STATUS_NOT_SUPPORTED
 
 ######################### HYPERPARAMETER ##############################
-LEARNING_RATE = 1e-4 # could also use 2 lrs
+LEARNING_RATE = 1e-5 # could also use 2 lrs
 Z_DIM =100
 NUM_EPOCHS = 2
 CRITIC_ITERATIONS =2 #Parameter to update critic many times before update generator once.
 # WEIGHT_CLIP = 0.01 #If use weight clipping. We use Wasserstein distance instead.
 LAMBDA_GP = 10 #Lambda for gradient penalty 
-BATCH_SIZE = 16 #To be 32 according to paper
+BATCH_SIZE = 32 #To be 32 according to paper
 
 #######################################################################
 ########################## DATA LOADING ###############################
@@ -42,7 +45,7 @@ density_file = "/home/tappay01/data/DATASET_densities.npy" #Second conditional i
 custom_dataset = CustomDataset(data_folder, water_dosemap_folder, density_file)
 
 # Split to train, validation, test subset
-train_subset, val_subset, test_subset = split(custom_dataset, 0.50, 0.25, 0.25)
+train_subset, val_subset, test_subset = split(custom_dataset, 0.6, 0.2, 0.2)
 # Turn train, val and test custom Dataset into DataLoader's
 train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False)
@@ -72,24 +75,17 @@ target_dir_path.mkdir(parents=True,exist_ok=True)
 
 #######################################################################
 ########################### INITIALIZE MODELS ##########################
-gen = Generator().to(device)
+gen = Generator(encChannels=(2, 16, 32, 64)).to(device)
 initialize_weights(gen, device)
 critic = Critic3d().to(device)
 initialize_weights(critic, device)
-
-#noise = torch.randn((1,100,16,16,8)).to(device) #Will be fed to generator's bottle neck
-#summary(gen, input_size=[(1,2, 256, 256, 128),(1,100,16,16,8)]) # do a test pass through of an example input size 
-#summary(critic, input_size=[(1,1, 256, 256, 128),(1,2,256,256,128)])
-
 
 #######################################################################
 ################################ TRAIN MODELS ##########################
 #Set up optimizers for generator and critic
 opt_gen = optim.Adam(gen.parameters(), lr=LEARNING_RATE, betas=(0.0,0.9)) # Beta from paper
 opt_critic = optim.Adam(critic.parameters(), lr=LEARNING_RATE, betas=(0.0,0.9))
-# Put model in train mode
-gen.train()
-critic.train()
+
 
 # Create empty results dictionary
 results = {"epoch_loss_gen": [],
@@ -97,8 +93,10 @@ results = {"epoch_loss_gen": [],
             "epoch_passing_rate_1": [],
             "val_passing_rate_1": [], 
 }
-
-for epoch in range(NUM_EPOCHS):
+# loop over epochs
+print("[INFO] training the network...")
+startTime = time.time()
+for e in tqdm(range(NUM_EPOCHS)): 
     
     epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate_1, step_real, step_fake  = train_step(
                                                                                                 gen, 
@@ -125,15 +123,20 @@ for epoch in range(NUM_EPOCHS):
     writer_loss.add_scalars(main_tag="Loss",
                           tag_scalar_dict={"gen_loss": epoch_loss_gen,
                                             "critic_loss": epoch_loss_critic},
-                          global_step=epoch)
+                          global_step=e)
     writer_passing_rate.add_scalars(main_tag="Passing rate",
                           tag_scalar_dict={"passing_rate_1": val_passing_rate_1},
-                          global_step=epoch)
+                          global_step=e)
+    
+    # print the model training and validation information
+    print("[INFO] EPOCH: {}/{}".format(e + 1, NUM_EPOCHS))
+    print("Train loss generator: {:.6f}, Train loss critic: {:.4f}, Train passing rate: {:.4f}, Val passing rate: {:.4f}".format(
+		epoch_loss_gen, epoch_loss_critic, epoch_passing_rate_1, val_passing_rate_1 ))
 
     # Save Model when new high validation passing rate is found
     if all(val_passing_rate_1 > rate for rate in results["val_passing_rate_1"]):
         print(f"[INFO] Found new high passing rate. Saving model to: {log_dir}")
-        model_name = f"model_epoch{epoch}.pth"
+        model_name = f"model_epoch{e}.pth"
         # Save the model state_dict()
         torch.save(obj=gen.state_dict(),f=target_dir_path/model_name) 
 
@@ -143,6 +146,10 @@ writer_fake.close()
 writer_loss.close() 
 writer_passing_rate.close()
 
+# display the total time needed to perform the training
+endTime = time.time()
+print("[INFO] total time taken to train the model: {:.2f}s".format(
+	endTime - startTime))
 
 #######################################################################
 ####################### VISUALIZE RESULTS ############################
@@ -162,7 +169,7 @@ plt.clf()
 # Plot passing rate per epoch
 plt.figure(figsize=(10,5))
 plt.title("Passing Rate During Training")
-plt.plot(results["passing_rate_1"],label="train_passing_rate_1")
+plt.plot(results["epoch_passing_rate_1"],label="train_passing_rate_1")
 plt.plot(results["val_passing_rate_1"],label="val_passing_rate_1")
 plt.xlabel("number of epoch")
 plt.ylabel("Passing rate")

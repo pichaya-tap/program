@@ -1,0 +1,90 @@
+Thu Aug 31 14:44:40 2023       
++---------------------------------------------------------------------------------------+
+| NVIDIA-SMI 530.30.02              Driver Version: 530.30.02    CUDA Version: 12.1     |
+|-----------------------------------------+----------------------+----------------------+
+| GPU  Name                  Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf            Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|                                         |                      |               MIG M. |
+|=========================================+======================+======================|
+|   0  Tesla V100-PCIE-32GB            Off| 00000000:58:00.0 Off |                    0 |
+| N/A   46C    P0               47W / 250W|      0MiB / 32768MiB |      0%      Default |
+|                                         |                      |                  N/A |
++-----------------------------------------+----------------------+----------------------+
+|   1  Tesla V100-PCIE-32GB            Off| 00000000:D8:00.0 Off |                    0 |
+| N/A   47C    P0               45W / 250W|      0MiB / 32768MiB |      0%      Default |
+|                                         |                      |                  N/A |
++-----------------------------------------+----------------------+----------------------+
+                                                                                         
++---------------------------------------------------------------------------------------+
+| Processes:                                                                            |
+|  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
+|        ID   ID                                                             Usage      |
+|=======================================================================================|
+|  No running processes found                                                           |
++---------------------------------------------------------------------------------------+
+0
+
+HOSTNAME = e00161
+Running on 14 processor(s) on 1 node(s).
+Running  GPUs.
+Thu Aug 31 14:44:40 CEST 2023
+
+
+EnvironmentNameNotFound: Could not find conda environment: gpu
+You can list all discoverable environments with `conda info --envs`.
+
+
+Device : cuda
+loading data as batch
+Total number of samples in the train dataset: 17
+Number of batches: 2
+Total number of samples in the validation dataset: 8
+Number of batches: 1
+Total number of samples in the test dataset: 10
+Number of batches: 1
+Data path: /home/tappay01/data/data1/Data1_1500MeV_-50Mm_-71.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1250MeV_75Mm_-96.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1250MeV_-50Mm_-146.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1250MeV_-50Mm_-46.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1250MeV_50Mm_-96.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1500MeV_-25Mm_-146.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1500MeV_-25Mm_-46.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1250MeV_-25Mm_-71.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1250MeV_75Mm_-71.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1250MeV_-25Mm_-146.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1250MeV_-50Mm_-96.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1500MeV_-50Mm_-121.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1500MeV_-50Mm_-96.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1250MeV_25Mm_-121.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1250MeV_25Mm_-46.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1250MeV_50Mm_-121.5Mm.npy
+Processing train batch 0
+Training Critic
+Traceback (most recent call last):
+  File "main.py", line 114, in <module>
+    step_fake 
+  File "/home/tappay01/program/engine.py", line 69, in train_step
+    fake = gen(cond, cur_batch_size)  
+  File "/home/tappay01/anaconda3/lib/python3.7/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/tappay01/program/model.py", line 119, in forward
+    s1, p1 = self.e1(inputs)
+  File "/home/tappay01/anaconda3/lib/python3.7/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/tappay01/program/model.py", line 71, in forward
+    x = self.conv(inputs)
+  File "/home/tappay01/anaconda3/lib/python3.7/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/tappay01/program/model.py", line 55, in forward
+    x = self.conv1(inputs)
+  File "/home/tappay01/anaconda3/lib/python3.7/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/tappay01/anaconda3/lib/python3.7/site-packages/torch/nn/modules/conv.py", line 607, in forward
+    return self._conv_forward(input, self.weight, self.bias)
+  File "/home/tappay01/anaconda3/lib/python3.7/site-packages/torch/nn/modules/conv.py", line 603, in _conv_forward
+    input, weight, bias, self.stride, self.padding, self.dilation, self.groups
+RuntimeError: CUDA out of memory. Tried to allocate 32.00 GiB (GPU 0; 31.74 GiB total capacity; 1.55 GiB already allocated; 29.31 GiB free; 1.56 GiB reserved in total by PyTorch) If reserved memory is >> allocated memory try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
+
+
+Total time elapsed: 00h00m18s (on  cores)
+Done.

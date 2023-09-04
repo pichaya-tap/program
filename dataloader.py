@@ -43,9 +43,9 @@ class CustomDataset(Dataset):
         y,z = filename.split('_')[2][:-2],filename.split('_')[3][:-6] # Example y=0 and z=-121.5
 
         # Load data from the .npy file
-        print("Data path:", data_path)
+        #print("Data path:", data_path)
         data = np.load(data_path)
-
+        
         # Find the corresponding conditional input file based on the condition
         dosemap_water_file = f'DATASET_{energy}_{y}_{z}.npy' #Example DATASET_1500MeV_0_-121.5.npy
         #print("dosemap_water_file:",dosemap_water_file)
@@ -57,7 +57,11 @@ class CustomDataset(Dataset):
      
         # Load the conditional input from the .npy file
         dosemap_water =  np.load(dosemap_water_path)
-
+        # Check for NaN values in the input data
+        assert not np.any(np.isnan(data)), "Input data contains NaN values."
+        assert not np.any(np.isnan(dosemap_water)), "Input data contains NaN values."
+        # If there are no NaN values, proceed with calculations.
+  
         # Transform
         transformed_data = self.__transform__(data, self.max_data )
         transformed_dosemap_water = self.__transform__(dosemap_water, self.max_dosemap_water)

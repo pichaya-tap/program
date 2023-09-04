@@ -1,0 +1,297 @@
+Mon Sep  4 00:46:07 2023       
++---------------------------------------------------------------------------------------+
+| NVIDIA-SMI 530.30.02              Driver Version: 530.30.02    CUDA Version: 12.1     |
+|-----------------------------------------+----------------------+----------------------+
+| GPU  Name                  Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf            Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|                                         |                      |               MIG M. |
+|=========================================+======================+======================|
+|   0  Tesla V100-PCIE-32GB            Off| 00000000:58:00.0 Off |                    0 |
+| N/A   26C    P0               25W / 250W|      0MiB / 32768MiB |      0%      Default |
+|                                         |                      |                  N/A |
++-----------------------------------------+----------------------+----------------------+
+|   1  Tesla V100-PCIE-32GB            Off| 00000000:D8:00.0 Off |                    0 |
+| N/A   39C    P0               43W / 250W|      0MiB / 32768MiB |      0%      Default |
+|                                         |                      |                  N/A |
++-----------------------------------------+----------------------+----------------------+
+                                                                                         
++---------------------------------------------------------------------------------------+
+| Processes:                                                                            |
+|  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
+|        ID   ID                                                             Usage      |
+|=======================================================================================|
+|  No running processes found                                                           |
++---------------------------------------------------------------------------------------+
+0
+
+HOSTNAME = e00161
+Running on 14 processor(s) on 1 node(s).
+Running  GPUs.
+Mon Sep  4 00:46:07 CEST 2023
+
+
+EnvironmentNameNotFound: Could not find conda environment: gpu
+You can list all discoverable environments with `conda info --envs`.
+
+
+  0%|          | 0/3 [00:00<?, ?it/s] 33%|███▎      | 1/3 [00:56<01:53, 56.83s/it] 67%|██████▋   | 2/3 [01:52<00:56, 56.39s/it]100%|██████████| 3/3 [02:47<00:00, 56.09s/it]
+Device : cuda
+loading data as batch
+Total number of samples in the train dataset: 21
+Number of batches: 11
+Total number of samples in the validation dataset: 7
+Number of batches: 4
+Total number of samples in the test dataset: 7
+Number of batches: 4
+[INFO] training the network...
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 0
+calculating passing rate...
+Batch 0/11                     Loss D: 9.9334, loss G: nan
+Train passing rate(1%) :0.000000
+add image to tensor board for step 0
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 1
+calculating passing rate...
+Batch 1/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 2
+calculating passing rate...
+Batch 2/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 3
+calculating passing rate...
+Batch 3/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 4
+calculating passing rate...
+Batch 4/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 5
+calculating passing rate...
+Batch 5/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 6
+calculating passing rate...
+Batch 6/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 7
+calculating passing rate...
+Batch 7/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 8
+calculating passing rate...
+Batch 8/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 9
+calculating passing rate...
+Batch 9/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Processing train batch 10
+calculating passing rate...
+Batch 10/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+sum_loss_gen : nan len(train_loader) : 11
+sum_loss_critic : nan
+End of training step. Start validation step
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Batch 0/4                     Val passing rate 1%: 0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Batch 1/4                     Val passing rate 1%: 0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Batch 2/4                     Val passing rate 1%: 0.000000
+Input data is valid and does not contain NaN values.
+Batch 3/4                     Val passing rate 1%: 0.000000
+[INFO] EPOCH: 1/3
+Train loss generator: nan, Train loss critic: nan, Train passing rate: 0.0000, Val passing rate: 0.0000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 0
+calculating passing rate...
+Batch 0/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+add image to tensor board for step 1
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 1
+calculating passing rate...
+Batch 1/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 2
+calculating passing rate...
+Batch 2/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 3
+calculating passing rate...
+Batch 3/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 4
+calculating passing rate...
+Batch 4/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 5
+calculating passing rate...
+Batch 5/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 6
+calculating passing rate...
+Batch 6/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 7
+calculating passing rate...
+Batch 7/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 8
+calculating passing rate...
+Batch 8/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 9
+calculating passing rate...
+Batch 9/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Processing train batch 10
+calculating passing rate...
+Batch 10/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+sum_loss_gen : nan len(train_loader) : 11
+sum_loss_critic : nan
+End of training step. Start validation step
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Batch 0/4                     Val passing rate 1%: 0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Batch 1/4                     Val passing rate 1%: 0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Batch 2/4                     Val passing rate 1%: 0.000000
+Input data is valid and does not contain NaN values.
+Batch 3/4                     Val passing rate 1%: 0.000000
+[INFO] EPOCH: 2/3
+Train loss generator: nan, Train loss critic: nan, Train passing rate: 0.0000, Val passing rate: 0.0000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 0
+calculating passing rate...
+Batch 0/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+add image to tensor board for step 2
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 1
+calculating passing rate...
+Batch 1/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 2
+calculating passing rate...
+Batch 2/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 3
+calculating passing rate...
+Batch 3/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 4
+calculating passing rate...
+Batch 4/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 5
+calculating passing rate...
+Batch 5/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 6
+calculating passing rate...
+Batch 6/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 7
+calculating passing rate...
+Batch 7/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 8
+calculating passing rate...
+Batch 8/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Processing train batch 9
+calculating passing rate...
+Batch 9/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+Input data is valid and does not contain NaN values.
+Processing train batch 10
+calculating passing rate...
+Batch 10/11                     Loss D: nan, loss G: nan
+Train passing rate(1%) :0.000000
+sum_loss_gen : nan len(train_loader) : 11
+sum_loss_critic : nan
+End of training step. Start validation step
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Batch 0/4                     Val passing rate 1%: 0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Batch 1/4                     Val passing rate 1%: 0.000000
+Input data is valid and does not contain NaN values.
+Input data is valid and does not contain NaN values.
+Batch 2/4                     Val passing rate 1%: 0.000000
+Input data is valid and does not contain NaN values.
+Batch 3/4                     Val passing rate 1%: 0.000000
+[INFO] EPOCH: 3/3
+Train loss generator: nan, Train loss critic: nan, Train passing rate: 0.0000, Val passing rate: 0.0000
+[INFO] total time taken to train the model: 167.61s
+
+
+Total time elapsed: 00h03m01s (on  cores)
+Done.

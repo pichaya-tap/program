@@ -1,0 +1,44 @@
+Sat Sep  2 17:27:40 2023       
++---------------------------------------------------------------------------------------+
+| NVIDIA-SMI 530.30.02              Driver Version: 530.30.02    CUDA Version: 12.1     |
+|-----------------------------------------+----------------------+----------------------+
+| GPU  Name                  Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf            Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|                                         |                      |               MIG M. |
+|=========================================+======================+======================|
+|   0  Tesla V100-PCIE-32GB            Off| 00000000:58:00.0 Off |                    0 |
+| N/A   29C    P0               26W / 250W|      0MiB / 32768MiB |      0%      Default |
+|                                         |                      |                  N/A |
++-----------------------------------------+----------------------+----------------------+
+|   1  Tesla V100-PCIE-32GB            Off| 00000000:D8:00.0 Off |                    0 |
+| N/A   26C    P0               23W / 250W|      0MiB / 32768MiB |      0%      Default |
+|                                         |                      |                  N/A |
++-----------------------------------------+----------------------+----------------------+
+                                                                                         
++---------------------------------------------------------------------------------------+
+| Processes:                                                                            |
+|  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
+|        ID   ID                                                             Usage      |
+|=======================================================================================|
+|  No running processes found                                                           |
++---------------------------------------------------------------------------------------+
+0
+
+HOSTNAME = e00161
+Running on 14 processor(s) on 1 node(s).
+Running  GPUs.
+Sat Sep  2 17:27:40 CEST 2023
+
+
+EnvironmentNameNotFound: Could not find conda environment: gpu
+You can list all discoverable environments with `conda info --envs`.
+
+
+  File "main.py", line 131
+    print("[INFO] EPOCH: {}/{}".format(e + 1, NUM_EPOCHS))
+                                                         ^
+TabError: inconsistent use of tabs and spaces in indentation
+
+
+Total time elapsed: 00h00m01s (on  cores)
+Done.

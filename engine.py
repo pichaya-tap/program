@@ -82,6 +82,7 @@ def train_step(gen,
             loss_critic = (
                 -(torch.mean(critic_real)- torch.mean(critic_fake)) + LAMBDA_GP*gp
                 )
+            print("loss_critic :",-float(torch.mean(critic_real)- torch.mean(critic_fake)) ,"gradient penalty :",float(LAMBDA_GP*gp))
             # Optimizer zero grad to zero out any previously accumulated gradients
             critic.zero_grad()
             # Perform backpropagation

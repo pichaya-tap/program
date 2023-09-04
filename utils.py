@@ -25,11 +25,6 @@ def update(results:dict, epoch_loss_gen, epoch_loss_critic, epoch_passing_rate_1
     results["epoch_loss_critic"].append(epoch_loss_critic)
     results["epoch_passing_rate_1"].append(epoch_passing_rate_1)
     results["val_passing_rate_1"].append(val_passing_rate_1)
-    # Print out what's happening
-    print("epoch_loss_gen :", epoch_loss_gen)
-    print("epoch_loss_critic :", epoch_loss_critic)
-    print("epoch_passing_rate_1 :", epoch_passing_rate_1)
-    print("val_passing_rate_1 :", val_passing_rate_1)
  
     # Return the filled results at the end of the epochs
     return results
@@ -71,7 +66,7 @@ def plot_dosemap(batch_data, tensorboard_writer:torch.utils.tensorboard.SummaryW
     # Create a batchx3 grid of subplots
     fig, axs = plt.subplots(1, 3, figsize=(12, 4))# plot only 1 row
 
-    dose = batch_data[0].squeeze().numpy() # from first sample data in batch to get 3D shape and convert to numpy array
+    dose = batch_data[0].squeeze().cpu().numpy() # from first sample data in batch to get 3D shape and convert to numpy array
     max_index = np.unravel_index(dose.argmax(), dose.shape)
 
     #source_y = int(max_index[1]) # it is not exact as source position

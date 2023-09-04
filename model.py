@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-
+#import torchinfo    
+#from torchinfo import summary
 
 class Critic3d(nn.Module):
     """Creates the convolutional network
@@ -13,17 +14,17 @@ class Critic3d(nn.Module):
     
     def __init__(self):
         super(Critic3d, self).__init__()
-        self.linear = nn.Linear()
+
         self.conv_stack = nn.Sequential(
-            nn.Conv3d(3, 128, kernel_size=3, stride =2, padding =1, bias=False),
+            nn.Conv3d(3, 64, kernel_size=3, stride =2, padding =1, bias=False),
             nn.SiLU(),
             nn.Dropout3d(p=0.15),
 
-            nn.Conv3d(128, 128, kernel_size=3, stride =2, padding =1, bias=False),
+            nn.Conv3d(64, 64, kernel_size=3, stride =2, padding =1, bias=False),
             nn.SiLU(),
             nn.Dropout3d(p=0.15),
 
-            nn.Conv3d(128, 1, kernel_size=3, stride =2, padding =1, bias=False),
+            nn.Conv3d(64, 1, kernel_size=3, stride =2, padding =1, bias=False),
             nn.SiLU(),
             nn.Dropout3d(p=0.15), #to add more layers
 
@@ -31,59 +32,101 @@ class Critic3d(nn.Module):
         )
 
 
-    def forward(self, x, conditional_input):
-        x = self.conv_stack(torch.cat([x, conditional_input], dim=1))        
+    def forward(self, x, conditional_input ):
+        x = self.conv_stack(torch.cat([x, conditional_input], dim=1))      
         # Reshape the tensor to [N, 1]
         # conditional_input.shape[0] number of data in that batch
         x = x.view(conditional_input.shape[0], -1)
-        return self.linear(x.shape[1],1).to(x.device)    
+        linear = nn.Linear(x.shape[1],1).to(x.device)  
+        return linear(x)
 
 
 
 
-class conv_block(nn.Module):
+class Block(nn.Module):
     def __init__(self, in_c, out_c):
         super().__init__()
         self.conv1 = nn.Conv3d(in_c, out_c, kernel_size=3, padding=1)
         #self.bn1 = nn.BatchNorm3d(out_c)
-        #self.conv2 = nn.Conv3d(out_c, out_c, kernel_size=3, padding=1)
-        #self.bn2 = nn.BatchNorm3d(out_c)
         self.relu = nn.ReLU()
-    def forward(self, inputs):
-        x = self.conv1(inputs)
-        #x = self.bn1(x)
-        x = self.relu(x)
-        #x = self.conv2(x)
-        #x = self.bn2(x)
-        #x = self.relu(x)
-        return x
+        self.conv2 = nn.Conv3d(out_c, out_c, kernel_size=3, padding=1)
+        #self.bn2 = nn.BatchNorm3d(out_c)
+
+    def forward(self, x):
+        return self.conv2(self.relu(self.conv1(x)))
 
         
 
-class encoder_block(nn.Module):
-    def __init__(self, in_c, out_c):
+class Encoder(nn.Module):
+    def __init__(self, channels=(2, 16, 32, 64)):
         super().__init__()
-        self.conv = conv_block(in_c, out_c)
+        self.enc_block = nn.ModuleList(
+            [Block(channels[i], channels[i+1])
+                for i in range(len(channels) - 1)])
         self.pool = nn.MaxPool3d((2,2, 2))
-    def forward(self, inputs):
-        x = self.conv(inputs)
-        p = self.pool(x)
-        return x, p
+
+    def forward(self, x):
+        # initialize an empty list to store the intermediate outputs
+        block_outputs = []
+
+        # loop through the encoder blocks
+        for block in self.enc_block:
+			# pass the inputs through the current encoder block, store
+			# the outputs, and then apply maxpooling on the output
+            x = block(x)
+            #print("encoder block",x.shape)
+            block_outputs.append(x)
+            x = self.pool(x)
+            #print("pooling",x.shape)
+		# return the list containing the intermediate outputs
+        return x, block_outputs
 
 
-class decoder_block(nn.Module):
-    def __init__(self, in_c, out_c):
+class Decoder(nn.Module):
+    def __init__(self, channels=(128, 64, 32, 16)):
         super().__init__()
-        self.up = nn.ConvTranspose3d(in_c, out_c, kernel_size=2, stride=2, padding=0)
-        self.conv = conv_block(out_c+out_c, out_c)
-    def forward(self, inputs, skip):
-        #x = self.up(inputs)
-        #print(f"x up concat with skip {x.shape, skip.shape}")
-        #x = torch.cat([x, skip], axis=1)
-        #print(f"after concat {x.shape}")
-        #x = self.conv(x)
-        #print(f"after conv {x.shape}")
-        return self.conv(torch.cat([self.up(inputs), skip], axis=1))
+        self.channels = channels
+        self.up = nn.ModuleList(
+			[nn.ConvTranspose3d(channels[i], channels[i + 1], kernel_size=2, stride=2, padding=0)
+			 	for i in range(len(channels) - 1)])
+        self.dec_blocks = nn.ModuleList(
+			[Block(channels[i], channels[i + 1])
+			 	for i in range(len(channels) - 1)])
+    def forward(self, x, encFeatures):
+		# loop through the number of channels
+        for i in range(len(self.channels) - 1):
+			# pass the inputs through the upsampler blocks
+            x = self.up[i](x)
+            #print("upsampling",x.shape)
+			# crop the current features from the encoder blocks,
+			# concatenate them with the current upsampled features,
+			# and pass the concatenated output through the current
+			# decoder block
+            encFeat = self.crop(encFeatures[i], x)
+            #print("encFeat",encFeat.shape," x ",x.shape)
+            x = torch.cat([x, encFeat], dim=1)
+            #print("x after concat", x.shape)
+            x = self.dec_blocks[i](x)
+            #print("decoded",x.shape)
+		# return the final decoder output
+        return x
+    
+    def crop(self, encFeatures, x):
+        # Grab the dimensions of the inputs and crop the encoder features
+        # to match the spatial dimensions of x (H, W).
+        (_, _, D, H, W) = x.shape
+
+        # Assuming you want to crop the center region, you can calculate the starting
+        # indices for cropping as follows:
+        start_d = (encFeatures.shape[2] - D) // 2
+        start_h = (encFeatures.shape[3] - H) // 2
+        start_w = (encFeatures.shape[4] - W) // 2
+
+        # Crop the encoder features using PyTorch's slicing operations.
+        cropped_features = encFeatures[:, :, start_d:start_d+D, start_h:start_h+H, start_w:start_w+W]
+
+        # Return the cropped features
+        return cropped_features
 
 
 class Generator(nn.Module):
@@ -95,49 +138,37 @@ class Generator(nn.Module):
     Returns:
         A batch of 3D matrix of energy depositions of size [BATCHSIZE*1*256*256*128]
     """
-    def __init__(self):
-        super().__init__()      
-        """ Encoder """
-        self.e1 = encoder_block(2, 64) #2 input channel because concatenated inputs
-        self.e2 = encoder_block(64, 128)
-        self.e3 = encoder_block(128, 256)
-        #self.e4 = encoder_block(256, 512)
+    def __init__(self, encChannels=(2, 16, 32, 64)):
+        decChannels=(128,64, 32, 16)
+        super().__init__()
+		# initialize the encoder and decoder
+        self.encoder = Encoder(encChannels)
+        self.decoder = Decoder(decChannels)
+
         """ Bottleneck """
-        self.b = conv_block(356, 512) #add 100 dimension for noise 
-        """ Decoder """
-        self.d1 = decoder_block(512, 256)
-        self.d2 = decoder_block(256, 128)
-        self.d3 = decoder_block(128, 64)
-        #self.d4 = decoder_block(128, 64)
+        self.b = Block(164, 128) #add 100 dimension for noise 
+
         """ Classifier """
-        self.outputs = nn.Conv3d(64, 1, kernel_size=1, padding=0)
+        self.outputs = nn.Conv3d(16, 1, kernel_size=1, padding=0)
 
-    def forward(self, inputs, cur_batch_size):
-        """ Encoder """
-        s1, p1 = self.e1(inputs)
-        #print("s1 ,p1 {}, {}".format(s1.shape, p1.shape))
-        s2, p2 = self.e2(p1)
-        #print("s2 ,p2 {}, {}".format(s2.shape, p2.shape)
-        s3, p3 = self.e3(p2)
-        #print("s3 ,p3 {}, {}".format(s3.shape, p3.shape))   
-        #s4, p4 = self.e4(p3)
-        #print("s4 ,p4 {}, {}".format(s4.shape, p4.shape)) 
-        """ Bottleneck """
+    def forward(self, x):
+		# grab the features from the encoder
+        b, encFeatures = self.encoder(x)
+        #print("last encFeatures {}".format(encFeatures[::-1][0].shape))
+        #print("bottleneck {}".format(b.shape))
+
         # Concatenate input tensor and noise tensor along the channel dimension (dim=1)
-        b = self.b(torch.cat([p3, torch.randn((cur_batch_size, 100, 32, 32, 16), device=p3.device)], dim=1))
-        #print("b {}".format(b.shape))
-        """ Decoder """
-        d1 = self.d1(b, s3)
-        #print("d1 {}".format(d1.shape))
-        d2 = self.d2(d1, s2)
-        #print("d2 {}".format(d2.shape))
-        d3 = self.d3(d2, s1)
-        #print("d3 {}".format(d3.shape))
-        #d4 = self.d4(d3, s1)
-        #print("d4 {}".format(d4.shape))        
-        """ Classifier """       
-        return self.outputs(d3)
-
+        add_noise = torch.cat([b, 
+                               torch.randn((x.shape[0], 100, b.shape[2], b.shape[3], b.shape[4]), 
+                                            device=b.device)], 
+                                            dim=1)
+        #print("noise {}".format(add_noise.shape))
+        b = self.b(add_noise) 
+        #print("bottleneck with noise {}".format(b.shape))
+        # pass the encoder features through decoder making sure that
+		# their dimensions are suited for concatenation
+        decFeatures = self.decoder(b, encFeatures[::-1][0:])
+        return self.outputs(decFeatures)
 
 
 def initialize_weights(model, device):
@@ -176,6 +207,18 @@ def gradient_penalty(critic, real, fake, cond, device):
         retain_graph=True,
         only_inputs=True)[0] # get first element
 
-    slopes  = torch.sqrt(torch.sum(gradient ** 2, dim=[1, 2, 3, 4]))
+    slopes  = torch.sqrt(torch.sum(gradient ** 2, dim=[1, 2, 3, 4]) + 1e-6) #small eps value to avoid Nan in sqr(0)
     
     return torch.mean((slopes - 1)**2) # gradient_penalty
+
+# To test and see summary of models # uncomment below
+
+#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#gen = Generator(encChannels=(2, 16, 32, 64)).to(device)
+#initialize_weights(gen, device)
+#critic = Critic3d().to(device)
+#initialize_weights(critic, device)
+
+#noise = torch.randn((1,100,16,16,8)).to(device) #Will be fed to generator's bottle neck
+#summary(gen, input_size=[(1,2, 256, 256, 128)]) # do a test pass through of an example input size 
+#summary(critic, input_size=[(1,1, 256, 256, 128),(1,2,256,256,128)])

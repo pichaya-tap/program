@@ -1,0 +1,65 @@
+Fri Sep  1 23:58:15 2023       
++---------------------------------------------------------------------------------------+
+| NVIDIA-SMI 530.30.02              Driver Version: 530.30.02    CUDA Version: 12.1     |
+|-----------------------------------------+----------------------+----------------------+
+| GPU  Name                  Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf            Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|                                         |                      |               MIG M. |
+|=========================================+======================+======================|
+|   0  Tesla V100-PCIE-32GB            Off| 00000000:58:00.0 Off |                    0 |
+| N/A   31C    P0               26W / 250W|      0MiB / 32768MiB |      0%      Default |
+|                                         |                      |                  N/A |
++-----------------------------------------+----------------------+----------------------+
+|   1  Tesla V100-PCIE-32GB            Off| 00000000:D8:00.0 Off |                    0 |
+| N/A   27C    P0               24W / 250W|      0MiB / 32768MiB |      0%      Default |
+|                                         |                      |                  N/A |
++-----------------------------------------+----------------------+----------------------+
+                                                                                         
++---------------------------------------------------------------------------------------+
+| Processes:                                                                            |
+|  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
+|        ID   ID                                                             Usage      |
+|=======================================================================================|
+|  No running processes found                                                           |
++---------------------------------------------------------------------------------------+
+0
+
+HOSTNAME = e00161
+Running on 14 processor(s) on 1 node(s).
+Running  GPUs.
+Fri Sep  1 23:58:15 CEST 2023
+
+
+EnvironmentNameNotFound: Could not find conda environment: gpu
+You can list all discoverable environments with `conda info --envs`.
+
+
+Device : cuda
+loading data as batch
+Total number of samples in the train dataset: 17
+Number of batches: 9
+Total number of samples in the validation dataset: 8
+Number of batches: 4
+Total number of samples in the test dataset: 10
+Number of batches: 5
+Data path: /home/tappay01/data/data1/Data1_1250MeV_-25Mm_-146.5Mm.npy
+Data path: /home/tappay01/data/data1/Data1_1250MeV_-50Mm_-121.5Mm.npy
+Processing train batch 0
+Training Critic
+Training Generator
+calculating passing rate...
+Batch 0/9                     Loss D: 9.9253, loss G: nan
+Train passing rate(1%) :0.00
+add image to tensor board for step 0
+Traceback (most recent call last):
+  File "main.py", line 109, in <module>
+    step_fake 
+  File "/home/tappay01/program/engine.py", line 129, in train_step
+    step_real = plot_dosemap(real, writer_real, step_real)# step to see the progression
+  File "/home/tappay01/program/utils.py", line 74, in plot_dosemap
+    dose = batch_data[0].squeeze().numpy() # from first sample data in batch to get 3D shape and convert to numpy array
+TypeError: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+
+
+Total time elapsed: 00h00m18s (on  cores)
+Done.
