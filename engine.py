@@ -55,11 +55,19 @@ def train_step(gen,
     # Loop through data loader data batches
     for batch_idx, (real, cond) in enumerate(train_loader): 
         print(f"Processing train batch {batch_idx}")
+        # Check for 'None' values in real and cond
+        if real is None or cond is None:
+            raise ValueError("Invalid data in batch. 'None' values found.")
+        # Check 'real' tensor for NaN or infinity values
+        if torch.isnan(real).any() or torch.isinf(real).any():
+            print("real tensor contains NaN or infinity values")
         # Send data to target device
         # Use .float() because of RuntimeError: expected scalar type Double but found Float
         real = real.float().to(device) 
         
         cond = cond.float().to(device) 
+        if torch.isnan(cond).any() or torch.isinf(cond).any():
+            print("cond tensor contains NaN or infinity values")
         cur_batch_size = real.shape[0]
 
                      
@@ -71,6 +79,10 @@ def train_step(gen,
             # noise = torch.randn(cur_batch_size, 100, 32, 32, 16).float().to(device) 
             # Forward pass
             fake = gen(cond)  
+            # Check 'fake' tensor for NaN or infinity values
+            if torch.isnan(fake).any() or torch.isinf(fake).any():
+                print("fake tensor contains NaN or infinity values")
+
             critic_real = critic(real, cond).reshape(-1)                 
             critic_fake = critic(fake, cond).reshape(-1)     
             if not LAMBDA_GP ==0:

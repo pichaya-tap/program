@@ -24,12 +24,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print('Device :',device)
 
 torch.backends.cudnn.enabled=True # comment BatchNorm1d -> CUDNN_STATUS_NOT_SUPPORTED
+# Enable cuDNN benchmark mode
+torch.backends.cudnn.benchmark = True
 
 ######################### HYPERPARAMETER ##############################
 LEARNING_RATE = 1e-5 # could also use 2 lrs
 Z_DIM =100
-NUM_EPOCHS = 2
-CRITIC_ITERATIONS =2 #Parameter to update critic many times before update generator once.
+NUM_EPOCHS = 5
+CRITIC_ITERATIONS =3 #Parameter to update critic many times before update generator once.
 # WEIGHT_CLIP = 0.01 #If use weight clipping. We use Wasserstein distance instead.
 LAMBDA_GP = 10 #Lambda for gradient penalty 
 BATCH_SIZE = 32 #To be 32 according to paper
@@ -39,15 +41,15 @@ BATCH_SIZE = 32 #To be 32 according to paper
 print('loading data as batch')
 
 data_folder = '/home/tappay01/data/data1/' #Dataset1
-water_dosemap_folder = '/home/tappay01/data/water/all' #First conditional input 
+water_dosemap_folder = '/scratch/tappay01/watersimulation/DATASET' #First conditional input 
 density_file = "/home/tappay01/data/DATASET_densities.npy" #Second conditional input
 
 custom_dataset = CustomDataset(data_folder, water_dosemap_folder, density_file)
 
 # Split to train, validation, test subset
-train_subset, val_subset, test_subset = split(custom_dataset, 0.6, 0.2, 0.2)
+train_subset, val_subset, test_subset = split(custom_dataset, 0.8, 0.1, 0.1)
 # Turn train, val and test custom Dataset into DataLoader's
-train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=True)
+train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=False)
 val_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False)
 test_loader = DataLoader(test_subset, batch_size=BATCH_SIZE, shuffle=False)
 

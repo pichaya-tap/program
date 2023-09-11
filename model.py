@@ -156,6 +156,9 @@ class Generator(nn.Module):
         b, encFeatures = self.encoder(x)
         #print("last encFeatures {}".format(encFeatures[::-1][0].shape))
         #print("bottleneck {}".format(b.shape))
+        if torch.isnan(b).any() or torch.isinf(b).any():
+            print("b contains NaN or infinity values")
+
 
         # Concatenate input tensor and noise tensor along the channel dimension (dim=1)
         add_noise = torch.cat([b, 
@@ -163,11 +166,17 @@ class Generator(nn.Module):
                                             device=b.device)], 
                                             dim=1)
         #print("noise {}".format(add_noise.shape))
+        if torch.isnan(add_noise).any() or torch.isinf(add_noise).any():
+            print("NaN or infinity values detected after concatenation.")
         b = self.b(add_noise) 
         #print("bottleneck with noise {}".format(b.shape))
+        if torch.isnan(b).any() or torch.isinf(b).any():
+            print("NaN or infinity values detected after the 'self.b' layer.")
         # pass the encoder features through decoder making sure that
 		# their dimensions are suited for concatenation
         decFeatures = self.decoder(b, encFeatures[::-1][0:])
+        if torch.isnan(decFeatures).any() or torch.isinf(decFeatures).any():
+            print("NaN or infinity values detected after the decoder.")
         return self.outputs(decFeatures)
 
 
@@ -206,6 +215,9 @@ def gradient_penalty(critic, real, fake, cond, device):
         create_graph=True,
         retain_graph=True,
         only_inputs=True)[0] # get first element
+    
+    if torch.isnan(gradient).any():
+        print("Gradients contain NaN values")
 
     slopes  = torch.sqrt(torch.sum(gradient ** 2, dim=[1, 2, 3, 4]) + 1e-6) #small eps value to avoid Nan in sqr(0)
     

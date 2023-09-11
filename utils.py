@@ -60,7 +60,7 @@ def plot_dosemap(batch_data, tensorboard_writer:torch.utils.tensorboard.SummaryW
     y_vals = np.arange(-181, 181-DELTA_Y, DELTA_Y)
     y_vals = y_vals + DELTA_Y/2
 
-    z_vals = np.arange(-229, 91, DELTA_Z)
+    z_vals = np.arange(-200, 120, DELTA_Z)
     z_vals = z_vals + DELTA_Z/2
 
     # Create a batchx3 grid of subplots

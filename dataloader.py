@@ -18,20 +18,29 @@ class CustomDataset(Dataset):
         self.dosemap_water_folder = conditional_folder
         self.density = np.load(density_file).transpose((1, 2, 0))
         # calculate normalization parameters for both data and conditional input
-        self.max_data = calculate_normalization_params(data_folder)
-        self.max_dosemap_water = calculate_normalization_params(conditional_folder)
-
+        self.min_data, self.max_data = calculate_normalization_params(data_folder)
+        self.min_dosemap_water, self.max_dosemap_water = calculate_normalization_params(conditional_folder)
+        self.transformed_density = self.__transform__(self.density, np.min(self.density), np.max(self.density))
     # Overwrite the __len__() method 
     def __len__(self)-> int:
         "Returns the total number of samples."
         return len(self.paths)
     
     # Transform with normalization with maximum value, resize, turn to torch and unsqueeze
-    def __transform__(self, data, max_value):
-        normalized_data = data / max_value
-        resized_data = resize(normalized_data)
-        transformed_data = torch.from_numpy(resized_data).unsqueeze(dim=0)
-        return transformed_data
+    def __transform__(self, data, min_value_global, max_value_global):
+        #data = data.astype(np.float16) #Reduce Data Precision
+        #if np.isnan(data).any():
+        #    print("NaN values detected after changing data type.")
+        data = (data - min_value_global) / (max_value_global - min_value_global)  #In-place to save memory 
+        
+        #data /= max_value_global
+        if np.isnan(data).any():
+            print("NaN values detected after min-max scaling")
+        data = resize(data)
+        if np.isnan(data).any():
+            print("NaN values detected after resize")
+        return torch.from_numpy(data).unsqueeze(dim=0)
+    
 
     # Overwrite the __getitem__() method 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -44,33 +53,51 @@ class CustomDataset(Dataset):
 
         # Load data from the .npy file
         #print("Data path:", data_path)
-        data = np.load(data_path)
+        data = np.load(data_path) 
         
         # Find the corresponding conditional input file based on the condition
         dosemap_water_file = f'DATASET_{energy}_{y}_{z}.npy' #Example DATASET_1500MeV_0_-121.5.npy
         #print("dosemap_water_file:",dosemap_water_file)
         dosemap_water_path = os.path.join(self.dosemap_water_folder , dosemap_water_file)
-
+        # Check if the item is valid (not None)
+        if data is None:
+            raise ValueError(f"Invalid data at index {idx}")
+        if dosemap_water_path is None:
+            raise ValueError(f"Invalid dosemap_water at index {idx}")
+        
         # Check if the water_dosemap file exists
         if not os.path.exists(dosemap_water_path): # If not, skip this data sample
-            return None  
+            dummy_data = torch.ones((1,256,256,128))
+            dummy_conditional_input = torch.ones((2,256,256,128))
+            # Avoid return None
+            return dummy_data, dummy_conditional_input
      
         # Load the conditional input from the .npy file
-        dosemap_water =  np.load(dosemap_water_path)
+        dosemap_water =  np.load(dosemap_water_path) /10
         # Check for NaN values in the input data
-        assert not np.any(np.isnan(data)), "Input data contains NaN values."
-        assert not np.any(np.isnan(dosemap_water)), "Input data contains NaN values."
+        if np.isnan(data).any():
+            print("NaN values detected in data")
+        assert not np.any(np.isnan(dosemap_water)), "Dosemap water Input data contains NaN values."
         # If there are no NaN values, proceed with calculations.
   
         # Transform
-        transformed_data = self.__transform__(data, self.max_data )
-        transformed_dosemap_water = self.__transform__(dosemap_water, self.max_dosemap_water)
-        transformed_density = self.__transform__(self.density, np.max(self.density))
+        transformed_data = self.__transform__(data,self.min_data, self.max_data )
+        transformed_dosemap_water = self.__transform__(dosemap_water,self.min_dosemap_water, self.max_dosemap_water)
+
+        if transformed_data is None:
+            raise ValueError(f"Invalid data at index {idx}")
+        if transformed_dosemap_water is None:
+            raise ValueError(f"Invalid dosemap_water at index {idx}")
+        if self.transformed_density is None:
+            raise ValueError(f"Invalid density file")
+        if torch.isnan(transformed_dosemap_water).any() or torch.isinf(transformed_dosemap_water).any():
+            print("NaN or infinity values detected after transformed_dosemap_water.")
 
         # Concatenate dosemap in water and material density as conditional_input
-        conditional_input = torch.cat([transformed_density, transformed_dosemap_water], dim=0) # in the shape (2,256,256,128)
-
-        return transformed_data, conditional_input
+        conditional_input = torch.cat([self.transformed_density, transformed_dosemap_water], dim=0) # in the shape (2,256,256,128)
+        if torch.isnan(transformed_dosemap_water).any() or torch.isinf(transformed_dosemap_water).any():
+            print("NaN or infinity values detected after concat with density.")
+        return transformed_data , conditional_input
 
 
 
@@ -95,33 +122,42 @@ def resize(data):
         # Truncate the data
         start_idx = (current_size[0] - target_size[0]) // 2
         end_idx = start_idx + target_size[0]
-        truncated_data = data[start_idx:end_idx, :, :target_size[2]]
+        start_idx_1 = (current_size[1] - target_size[1]) // 2
+        end_idx_1 = start_idx_1 + target_size[1]
+        truncated_data = data[start_idx:end_idx, start_idx_1:end_idx_1, :target_size[2]]
         return truncated_data
 
     # Padding the data
     padding = [(0, max(target_size[i] - current_size[i], 0)) for i in range(3)]
-    padded_data = np.pad(data, padding, mode='constant')
-    return padded_data
+    return np.pad(data, padding, mode='constant')
+
 
 
 def calculate_normalization_params(data_folder):
     """Calculate normalization parameters
-    Find maximum value among all data files with extension.npy in the directory.
+    Find maximum and minimum value among all data files with extension.npy in the directory.
     
     Args:
         data_folder: A directory where data is located.
     Returns:
-         A maximum value of the data.
+         A minimum and maximum value of the data.
     """
-    max_value = 0
-    file_names = os.listdir(data_folder)
-    for file_name in file_names:
+    # Calculate global min and max values across the dataset
+    min_value_global = np.inf
+    max_value_global = -np.inf
+    for file_name in os.listdir(data_folder):
         file_path = os.path.join(data_folder, file_name)
-        if os.path.isfile(file_path) and file_name.endswith(".npy"):
-            data = np.load(file_path)
-            local_max = np.max(data)
-            max_value = max(max_value, local_max)
-    return max_value
+        # Check if the file is a valid numpy file (modify as needed)
+        if file_name.endswith('.npy'):
+            try:
+                # Load the data from the file
+                data = np.load(file_path)
+
+                min_value_global = min(min_value_global, np.min(data))
+                max_value_global = max(max_value_global, np.max(data))
+            except Exception as e:
+                print(f"Error processing file {file_name}: {str(e)}")
+    return min_value_global, max_value_global
 
 
 def split(custom_dataset,
