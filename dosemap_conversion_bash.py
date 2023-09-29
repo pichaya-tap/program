@@ -1,6 +1,9 @@
 '''
 The code converts linear indices into corresponding three-dimensional coordinates
 (x, y, z) within a voxel grid system.
+
+caution: some filename with comma. Need to rename to get rid of comma after conversion.
+
 '''
 
 import pandas as pd

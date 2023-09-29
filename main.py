@@ -12,6 +12,7 @@ from pathlib import Path
 #from torchinfo import summary
 import time
 from tqdm import tqdm
+import pickle
 
 from dataloader import CustomDataset, split
 from model import Critic3d, Generator, initialize_weights
@@ -31,23 +32,31 @@ torch.backends.cudnn.benchmark = True
 LEARNING_RATE = 1e-5 # could also use 2 lrs
 Z_DIM =100
 NUM_EPOCHS = 20
-CRITIC_ITERATIONS =5 #Parameter to update critic many times before update generator once.
+# CRITIC_ITERATIONS =5 #Parameter to update critic many times before update generator once.Change im engine
 # WEIGHT_CLIP = 0.01 #If use weight clipping. We use Wasserstein distance instead.
-LAMBDA_GP = 0 #Lambda for gradient penalty 
-BATCH_SIZE = 4 #To be 32 according to paper
+LAMBDA_GP = 1 #Lambda for gradient penalty 
+BATCH_SIZE = 8 #To be 32 according to paper
 
 #######################################################################
 ########################## DATA LOADING ###############################
 print('loading data as batch')
 
 data_folder = '/home/tappay01/data/data1/' #Dataset1
-water_dosemap_folder = '/scratch/tappay01/watersimulation/DATASET' #First conditional input 
+water_dosemap_folder = '/home/tappay01/data/water/DATASET' #First conditional input 
 density_file = "/home/tappay01/data/DATASET_densities.npy" #Second conditional input
+print('create custom_dataset')
+#custom_dataset = CustomDataset(data_folder, water_dosemap_folder, density_file)
 
-custom_dataset = CustomDataset(data_folder, water_dosemap_folder, density_file)
+# Save the custom dataset to a file
+#with open('/home/tappay01/data/custom_dataset1.pkl', 'wb') as file:
+#    pickle.dump(custom_dataset, file)
 
-# Split to train, validation, test subset
-train_subset, val_subset, test_subset = split(custom_dataset, 0.8, 0.1, 0.1)
+# Later, when you want to use the dataset again, you can load it from the file
+with open('/home/tappay01/data/custom_dataset1.pkl', 'rb') as file:
+    custom_dataset = pickle.load(file)
+
+print('# Split to train, validation, test subset')
+train_subset, val_subset, test_subset = split(custom_dataset, 0.9, 0.1, 0.0)
 # Turn train, val and test custom Dataset into DataLoader's
 train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=False)
 val_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False)
@@ -92,15 +101,15 @@ opt_critic = optim.Adam(critic.parameters(), lr=LEARNING_RATE, betas=(0.0,0.9))
 # Create empty results dictionary
 results = {"epoch_loss_gen": [],
             "epoch_loss_critic": [],
-            "epoch_passing_rate_1": [],
-            "val_passing_rate_1": [], 
+            "epoch_passing_rate": [],
+            "val_passing_rate": [], 
 }
 # loop over epochs
 print("[INFO] training the network...")
 startTime = time.time()
 for e in tqdm(range(NUM_EPOCHS)): 
     
-    epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate_1, step_real, step_fake  = train_step(
+    epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate, step_real, step_fake  = train_step(
                                                                                                 gen, 
                                                                                                 critic,
                                                                                                 train_loader,
@@ -115,11 +124,11 @@ for e in tqdm(range(NUM_EPOCHS)):
                                                                                                 )
     
     print('End of training step. Start validation step')
-    val_passing_rate_1 = val_step(gen, critic, val_loader, device)
+    val_passing_rate = val_step(gen, critic, val_loader, device)
 
 
     # Update results dictionary
-    results = update(results, epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate_1, val_passing_rate_1)
+    results = update(results, epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate, val_passing_rate)
 
     # Add results to SummaryWriter
     writer_loss.add_scalars(main_tag="Loss",
@@ -127,16 +136,16 @@ for e in tqdm(range(NUM_EPOCHS)):
                                             "critic_loss": epoch_loss_critic},
                           global_step=e)
     writer_passing_rate.add_scalars(main_tag="Passing rate",
-                          tag_scalar_dict={"passing_rate_1": val_passing_rate_1},
+                          tag_scalar_dict={"passing_rate_1": val_passing_rate},
                           global_step=e)
     
     # print the model training and validation information
     print("[INFO] EPOCH: {}/{}".format(e + 1, NUM_EPOCHS))
     print("Train loss generator: {:.6f}, Train loss critic: {:.4f}, Train passing rate: {:.4f}, Val passing rate: {:.4f}".format(
-		epoch_loss_gen, epoch_loss_critic, epoch_passing_rate_1, val_passing_rate_1 ))
+		epoch_loss_gen, epoch_loss_critic, epoch_passing_rate, val_passing_rate))
 
     # Save Model when new high validation passing rate is found
-    if all(val_passing_rate_1 > rate for rate in results["val_passing_rate_1"]):
+    if all(val_passing_rate > rate for rate in results["val_passing_rate"]):
         print(f"[INFO] Found new high passing rate. Saving model to: {log_dir}")
         model_name = f"model_epoch{e}.pth"
         # Save the model state_dict()
@@ -171,8 +180,8 @@ plt.clf()
 # Plot passing rate per epoch
 plt.figure(figsize=(10,5))
 plt.title("Passing Rate During Training")
-plt.plot(results["epoch_passing_rate_1"],label="train_passing_rate_1")
-plt.plot(results["val_passing_rate_1"],label="val_passing_rate_1")
+plt.plot(results["epoch_passing_rate"],label="train_passing_rate")
+plt.plot(results["val_passing_rate"],label="val_passing_rate")
 plt.xlabel("number of epoch")
 plt.ylabel("Passing rate")
 plt.legend()

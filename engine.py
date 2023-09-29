@@ -4,8 +4,18 @@ Contains functions for training and validating a model.
 import torch
 from model import gradient_penalty
 from typing import Tuple
-from utils import plot_dosemap
+from utils import plot_dosemap, show_tensor_images
 import gc
+
+def cal_passing_rate(real,fake):
+    """Returns:
+        A list of passing rate of individual samples in the batch 
+    """
+    delta = torch.abs((fake - real) / (real.max())) #δ = (Dgen − Dsim)/ Dmax sim
+    #number of voxel with delta < 1%
+    passing_voxels = torch.sum(delta < 0.05, dim=(1, 2, 3, 4)).tolist()  #TEST! number of voxel with delta < %
+    batch_passing_rates = [(passing_voxel * 100) / (256 * 256 * 128) for passing_voxel in passing_voxels] #percent passing rate
+    return batch_passing_rates
 
 def train_step(gen,
                critic,
@@ -46,11 +56,11 @@ def train_step(gen,
     gen.train()
     critic.train()
     # Initialize train performance metrics values
-    sum_loss_gen = 0
-    sum_loss_critic =0
-    sum_passing_rate_1 =0
+    generator_losses  = []
+    critic_losses = []
+    passing_rates = []
 
-    CRITIC_ITERATIONS =1 # Update critics = CRITIC_ITERATIONS times before update the generator
+    CRITIC_ITERATIONS =5 # Update critics = CRITIC_ITERATIONS times before update the generator
 
     # Loop through data loader data batches
     for batch_idx, (real, cond) in enumerate(train_loader): 
@@ -70,93 +80,90 @@ def train_step(gen,
             print("cond tensor contains NaN or infinity values")
         cur_batch_size = real.shape[0]
 
+        
                      
         ########## Train Critic: max E[critic(real)] - E[critic(fake)]###########
         ########## equivalent to minimizing the negative of that #################
         # Update critics = CRITIC_ITERATIONS times before update the generator
+        mean_iteration_critic_loss = 0
         for _ in range(CRITIC_ITERATIONS): 
             # print('Training Critic')
-            # noise = torch.randn(cur_batch_size, 100, 32, 32, 16).float().to(device) 
-            # Forward pass
-            fake = gen(cond)  
+            fake = gen(cond).float().to(device)  
             # Check 'fake' tensor for NaN or infinity values
             if torch.isnan(fake).any() or torch.isinf(fake).any():
                 print("fake tensor contains NaN or infinity values")
-
-            critic_real = critic(real, cond).reshape(-1)                 
-            critic_fake = critic(fake, cond).reshape(-1)     
+                           
+            critic_fake = critic(fake.detach(), cond).reshape(-1)  
+            critic_real = critic(real, cond).reshape(-1)     
             if not LAMBDA_GP ==0:
-                gp = gradient_penalty(critic, real, fake, cond, device=device)
+                gp = gradient_penalty(critic, real, fake.detach(), cond, device=device)
                 
             else:gp=0
             
             # Calculate  and accumulate loss
-            loss_critic = (
-                -(torch.mean(critic_real)- torch.mean(critic_fake)) + LAMBDA_GP*gp
-                )
+            loss_critic = -(torch.mean(critic_real)- torch.mean(critic_fake)) + LAMBDA_GP*gp
+            
             print("loss_critic :",-float(torch.mean(critic_real)- torch.mean(critic_fake)) ,"gradient penalty :",float(LAMBDA_GP*gp))
+            # Keep track of the average critic loss in this batch
+            mean_iteration_critic_loss += loss_critic.item() / CRITIC_ITERATIONS
             # Optimizer zero grad to zero out any previously accumulated gradients
             critic.zero_grad()
             # Perform backpropagation
-            loss_critic.backward(retain_graph=False) # True, able to reuse
+            loss_critic.backward(retain_graph=True) # True, able to reuse
             #Weight clippling # add this to restrict the gradients to prevent them from becoming too large
             if LAMBDA_GP ==0:
                 for p in critic.parameters():
                     p.data.clamp_(-0.001, 0.001)
 
             # Optimizer step to update model parameters
-            opt_critic.step() 
-            # Accumulate metric across all interations
-            sum_loss_critic += float(loss_critic)
+            opt_critic.step()       
+        critic_losses += [mean_iteration_critic_loss]
             
 
         ########## Train Generator: min -E[critic(gen_fake)] ##########
         ###############################################################
         #print('Training Generator')
-        
-        fake = gen(cond) #reuse the fake tensor
-        output = critic(fake, cond).reshape(-1)
-        loss_gen = -torch.mean(output)
         # Optimizer zero grad
         gen.zero_grad()
+        fake_2 = gen(cond).float().to(device)
+        crit_fake_pred = critic(fake_2, cond).reshape(-1)
+        loss_gen = -1.*torch.mean(crit_fake_pred)
+        #loss_gen = torch.mean(critic_real)- torch.mean(critic_fake)   
         # Loss backward
         loss_gen.backward()
         # Optimizer step
         opt_gen.step()
-        # Accumulate metric across all batches
-        sum_loss_gen += float(loss_gen)
+        # Keep track of the average generator loss
+        generator_losses  += [loss_gen.item()]
 
         ################### Performance metric ######################
         print('calculating passing rate...')
-        delta = torch.abs((fake - real) / real.max()) #δ = (Dgen − Dsim)/ Dmax sim
-        passing_voxel_1 = torch.sum(delta < 0.01).item() #number of voxel with delta < 1%
-        passing_rate_1 = passing_voxel_1*100/(256*256*128) #percent passing rate
-
-        # Accumulate metric across all batches
-        sum_passing_rate_1 += passing_rate_1
+        batch_passing_rates = cal_passing_rate(real,fake_2)
+       # Keep track of the passing_rate
+        passing_rates += batch_passing_rates
 
 
         # Print losses occasionally and print to tensorboard
         print(f"Batch {batch_idx}/{len(train_loader)} \
-                    Loss D: {loss_critic:.4f}, loss G: {loss_gen:.4f}")           
-        print(f"Train passing rate(1%) :{passing_rate_1:.6f}") 
-        if batch_idx == 0: # To change to some number
+                    Loss critic: {mean_iteration_critic_loss:.4f}, loss generator: {loss_gen:.4f}")           
+        print(f"Train passing rate(1%) :{batch_passing_rates}") 
+        if True: #batch_idx == 0: # To change to some number
             with torch.no_grad():
                 print(f'add image to tensor board for step {step_real}')
                 step_real = plot_dosemap(real, writer_real, step_real)# step to see the progression
-                step_fake = plot_dosemap(fake, writer_fake, step_fake)
+                step_fake = plot_dosemap(fake_2, writer_fake, step_fake)
+                show_tensor_images(real,'/home/tappay01/test/runs/images_real' )
+                show_tensor_images(fake_2,'/home/tappay01/test/runs/images_fake' )
       
-    print("sum_loss_gen :",sum_loss_gen, "len(train_loader) :", len(train_loader))
-    print("sum_loss_critic :",sum_loss_critic)
-    # Calculate loss per epoch
-    epoch_loss_gen = sum_loss_gen/len(train_loader)
-    epoch_loss_critic = sum_loss_critic/ (len(train_loader)*CRITIC_ITERATIONS)
-    epoch_passing_rate_1 = sum_passing_rate_1/len(train_loader)
 
+    # Calculate loss per epoch
+    epoch_loss_gen = sum(generator_losses)/len(generator_losses)
+    epoch_loss_critic = sum(critic_losses)/len(critic_losses)
+    epoch_passing_rate = sum(passing_rates)/len(passing_rates)
     writer_real.close()
     writer_fake.close()
 
-    return epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate_1, step_real, step_fake
+    return epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate, step_real, step_fake
 
 ###############################End of: def train_step ####################################################
     
@@ -183,7 +190,7 @@ def val_step(gen,
     critic.eval()
      
     # Setup train loss values
-    sum_passing_rate_1 = 0
+    passing_rates = []
     
     # Turn on inference context manager
     with torch.inference_mode():
@@ -196,27 +203,22 @@ def val_step(gen,
             cur_batch_size = real.shape[0]
             noise = torch.randn(cur_batch_size, 100, 16, 16,8).float().to(device)
             # Forward pass
-            fake = gen(cond)
+            fake = gen(cond).float().to(device)
 
-            # Calculate and accumulate passing rate
-            delta =(fake - real)/ real.max() #δ = (Dgen − Dsim)/ Dmax sim
-            passing_voxel_1 = torch.sum(delta < 0.01).item()
-            passing_rate_1 = passing_voxel_1*100/(256*256*128)
-
-            # Accumulate metric across all batches
-            sum_passing_rate_1 += passing_rate_1
+            print('calculating passing rate...')
+            batch_passing_rates = cal_passing_rate(real, fake)
+            # Keep track of the passing_rate
+            passing_rates += batch_passing_rates
 
             # Print passing rate occasionally and # to do ...print to tensorboard
-            print(
-                f"Batch {batch_idx}/{len(val_loader)} \
-                    Val passing rate 1%: {passing_rate_1:.6f}"
-            )
+            print(f"Batch {batch_idx}/{len(val_loader)}") 
+            print(f"Val passing rate 1% :{batch_passing_rates}") 
                       
 
     # Adjust metrics to get average passing rate per epoch
-    epoch_passing_rate_1 = sum_passing_rate_1/len(val_loader)
+    epoch_passing_rate = sum(passing_rates)/len(passing_rates)
 
-    return epoch_passing_rate_1
+    return epoch_passing_rate
 
 ###############################End of: def val_step ####################################################
  
