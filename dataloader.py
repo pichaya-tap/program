@@ -16,7 +16,7 @@ class CustomDataset(Dataset):
         # Get all data paths
         self.paths = list(Path(data_folder).glob("*.npy"))
         self.dosemap_water_folder = conditional_folder
-        self.density = np.load(density_file).transpose((1, 2, 0))
+        self.density = np.load(density_file).transpose((2, 1, 0))
         # calculate normalization parameters for both data and conditional input
         self.min_data, self.max_data = calculate_normalization_params(data_folder)
         self.min_dosemap_water, self.max_dosemap_water = calculate_normalization_params(conditional_folder)
@@ -28,12 +28,9 @@ class CustomDataset(Dataset):
     
     # Transform with normalization with maximum value, resize, turn to torch and unsqueeze
     def __transform__(self, data, min_value_global, max_value_global):
+        print('transforming')
         #data = data.astype(np.float16) #Reduce Data Precision
-        #if np.isnan(data).any():
-        #    print("NaN values detected after changing data type.")
         data = (data - min_value_global) / (max_value_global - min_value_global)  #In-place to save memory 
-        
-        #data /= max_value_global
         if np.isnan(data).any():
             print("NaN values detected after min-max scaling")
         data = resize(data)
@@ -52,12 +49,12 @@ class CustomDataset(Dataset):
         y,z = filename.split('_')[2][:-2],filename.split('_')[3][:-6] # Example y=0 and z=-121.5
 
         # Load data from the .npy file
-        #print("Data path:", data_path)
+        print("Data path:", data_path)
         data = np.load(data_path) 
         
         # Find the corresponding conditional input file based on the condition
         dosemap_water_file = f'DATASET_{energy}_{y}_{z}.npy' #Example DATASET_1500MeV_0_-121.5.npy
-        #print("dosemap_water_file:",dosemap_water_file)
+        print("dosemap_water_file:",dosemap_water_file)
         dosemap_water_path = os.path.join(self.dosemap_water_folder , dosemap_water_file)
         # Check if the item is valid (not None)
         if data is None:
@@ -73,7 +70,7 @@ class CustomDataset(Dataset):
             return dummy_data, dummy_conditional_input
      
         # Load the conditional input from the .npy file
-        dosemap_water =  np.load(dosemap_water_path) /10
+        dosemap_water =  np.load(dosemap_water_path) 
         # Check for NaN values in the input data
         if np.isnan(data).any():
             print("NaN values detected in data")
@@ -143,20 +140,28 @@ def calculate_normalization_params(data_folder):
          A minimum and maximum value of the data.
     """
     # Calculate global min and max values across the dataset
+    print('calculate_normalization_params')
     min_value_global = np.inf
     max_value_global = -np.inf
     for file_name in os.listdir(data_folder):
         file_path = os.path.join(data_folder, file_name)
         # Check if the file is a valid numpy file (modify as needed)
         if file_name.endswith('.npy'):
+            data = np.load(file_path)
+            print(file_path)
+            min_value_global = min(min_value_global, np.min(data))
+            max_value_global = max(max_value_global, np.max(data))
+            '''
             try:
                 # Load the data from the file
                 data = np.load(file_path)
-
+                print(file_path)
                 min_value_global = min(min_value_global, np.min(data))
                 max_value_global = max(max_value_global, np.max(data))
             except Exception as e:
                 print(f"Error processing file {file_name}: {str(e)}")
+            '''
+    print('return min_value_global, max_value_global', min_value_global, max_value_global)
     return min_value_global, max_value_global
 
 

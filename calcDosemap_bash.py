@@ -7,6 +7,7 @@ import getopt
 import itertools
 
 
+
 def main(argv):
 
     opts, args = getopt.getopt(argv,"hi:e:",["ifile=","ofile="])
@@ -18,7 +19,7 @@ def main(argv):
 
     #####################################Refer to "'notes_dicom_images.txt"########################################################
     DATASET = 'DATASET'
-    POSITIONY = [-50, -25, 0, 25, 50, 75]  
+    POSITIONY = [-50, -25, 0.1, 25, 50, 75]  
     POSITIONZ = [-146.5, -121.5, -96.5, -71.5, -46.5] 
     POSITION = itertools.product(POSITIONY, POSITIONZ)
 
@@ -65,8 +66,18 @@ def main(argv):
             continue
 
         for file in inputfiles:
-            print('-- Loading File {} --'.format(file))
+            # Construct the save_filename based on the file name and position values
+            filename = '{}_{}_{}_{}.npy'.format(ENERGY,file.split(".")[0].split("_")[-1],positiony,positionz)
+            file_path = os.path.join(save_path, filename)
+            # check if the target file exists already, skip
+            if os.path.exists(file_path):
+                print(f"Warning: File '{file_path}' already exists. Skipping calculation.")
+                dosemap_sum += np.read(file_path)
+                continue
+            
+            print('-- Loading File {} --'.format(file))            
             data = pd.read_csv(file, sep = ',', skiprows = 11, names = ['X', 'Y', 'Z', 'Edep', 'Process', 'particle', 'E'])
+
             data_edep = data['Edep'].values
             
 
@@ -89,12 +100,8 @@ def main(argv):
             # Umrechnen in Gray (Gy = J/kg und eV = e* J )
             dosemap = dosemap*(1e6)*elementarladung / WATERMASS_PER_VOXEL # from MeV
             # Save current dosemap
-            # Construct the save_filename based on the file name and position values
-            filename = '{}_{}_{}_{}.npy'.format(ENERGY,file.split(".")[0].split("_")[-1],positiony,positionz)
-            file_path = os.path.join(save_path, filename)
-            #np.save(file_path, dosemap)
+            np.save(file_path, dosemap)
             print('{} file added successfully'.format(filename))
-
             # Add current dosemap to the overall dosemap
             dosemap_sum += dosemap
         

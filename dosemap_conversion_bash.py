@@ -24,7 +24,7 @@ save_path = '/home/tappay01/data/data1'
 
 # Iterate through files in the folder
 for filename in os.listdir(directory_path):
-    if filename.endswith('.out') and filename.startswith('Data'):
+    if filename.endswith('.out') and filename.startswith('Data1_3000MeV'):
         # Start the timer
         start_time = time.time()
         # Construct the input and output file paths

@@ -31,10 +31,10 @@ torch.backends.cudnn.benchmark = True
 ######################### HYPERPARAMETER ##############################
 LEARNING_RATE = 1e-5 # could also use 2 lrs
 Z_DIM =100
-NUM_EPOCHS = 20
+NUM_EPOCHS = 5
 # CRITIC_ITERATIONS =5 #Parameter to update critic many times before update generator once.Change im engine
 # WEIGHT_CLIP = 0.01 #If use weight clipping. We use Wasserstein distance instead.
-LAMBDA_GP = 1 #Lambda for gradient penalty 
+LAMBDA_GP = 10 #Lambda for gradient penalty 
 BATCH_SIZE = 8 #To be 32 according to paper
 
 #######################################################################

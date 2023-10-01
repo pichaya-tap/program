@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 #import torchinfo    
 #from torchinfo import summary
+from torch.autograd import Variable
 
 class Critic3d(nn.Module):
     """Creates the convolutional network
@@ -47,13 +48,13 @@ class Block(nn.Module):
     def __init__(self, in_c, out_c):
         super().__init__()
         self.conv1 = nn.Conv3d(in_c, out_c, kernel_size=3, padding=1)
-        #self.bn1 = nn.BatchNorm3d(out_c)
+        self.bn1 = nn.BatchNorm3d(out_c)
         self.relu = nn.ReLU()
         self.conv2 = nn.Conv3d(out_c, out_c, kernel_size=3, padding=1)
-        #self.bn2 = nn.BatchNorm3d(out_c)
+        self.bn2 = nn.BatchNorm3d(out_c)
 
     def forward(self, x):
-        return self.conv2(self.relu(self.conv1(x)))
+        return self.relu(self.bn2(self.conv2(self.relu(self.bn1((self.conv1(x)))))))
 
         
 
@@ -149,7 +150,10 @@ class Generator(nn.Module):
         self.b = Block(164, 128) #add 100 dimension for noise 
 
         """ Classifier """
-        self.outputs = nn.Conv3d(16, 1, kernel_size=1, padding=0)
+        self.outputs = nn.Sequential(
+                            nn.Conv3d(16, 1, kernel_size=1, padding=0),
+                            nn.Tanh(),
+        )
 
     def forward(self, x):
 		# grab the features from the encoder
@@ -207,21 +211,25 @@ def gradient_penalty(critic, real, fake, cond, device):
 
     # Calculate gradients
     mixed_scores = critic(interpolates, cond)
+
+    fake = Variable(torch.Tensor(real.shape[0], 1).to(device).fill_(1.0), requires_grad=False)
     # Get gradient w.r.t. interpolates
-    gradient = torch.autograd.grad(
+    gradients = torch.autograd.grad(
         inputs=interpolates,
         outputs=mixed_scores,
-        grad_outputs=torch.ones_like(mixed_scores),
+        grad_outputs=fake,
         create_graph=True,
         retain_graph=True,
         only_inputs=True)[0] # get first element
     
-    if torch.isnan(gradient).any():
+    if torch.isnan(gradients).any():
         print("Gradients contain NaN values")
 
-    slopes  = torch.sqrt(torch.sum(gradient ** 2, dim=[1, 2, 3, 4]) + 1e-6) #small eps value to avoid Nan in sqr(0)
-    
-    return torch.mean((slopes - 1)**2) # gradient_penalty
+    gradients = gradients.view(gradients.size(0), -1)
+    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+    return gradient_penalty
+    #slopes  = torch.sqrt(torch.sum(gradient ** 2, dim=[1, 2, 3, 4]) + 1e-6) #small eps value to avoid Nan in sqr(0)
+    #return torch.mean((slopes - 1)**2) # gradient_penalty
 
 # To test and see summary of models # uncomment below
 
