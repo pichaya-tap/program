@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-
+import torchinfo    
+from torchinfo import summary
 from torch.autograd import Variable
 
 class Critic3d(nn.Module):
@@ -30,135 +31,92 @@ class Critic3d(nn.Module):
 
             nn.Conv3d(256, 1, kernel_size=3, stride =2, padding =0, bias=False),
             nn.Flatten(),
-            nn.Dropout3d(p=0.15),
-            nn.Linear(63,1) #1575 when original shape
+            nn.Linear(1575,1)
             
         )
+
 
     def forward(self, x, conditional_input ):
         x = self.conv_stack(torch.cat([x, conditional_input], dim=1))      
         # Reshape the tensor to [N, 1]
         return x  
     
-import torch.nn.functional as F
-
-class Swish(nn.Module):
-    def __init__(self, beta=1.0):
-        super(Swish, self).__init__()
-        self.beta = beta
-
-    def forward(self, x):
-        return x * torch.sigmoid(self.beta * x)
 
 class Block(nn.Module):
     def __init__(self, in_c, out_c):
         super().__init__()
         self.conv1 = nn.Conv3d(in_c, out_c, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm3d(out_c)
-        self.relu = nn.ReLU()
+        self.silu = nn.SiLU()
         self.conv2 = nn.Conv3d(out_c, out_c, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm3d(out_c)
-
-    def forward(self, x):
-        return self.bn2(self.conv2(self.relu(self.bn1(self.conv1(x)))))
-    
-class Block_new(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        # Define convolutional layers, Swish activation, Batch Normalization, and Dropout
-        self.conv1 = nn.Conv3d(in_channels, out_channels, kernel_size=3)
-        self.bn1 = nn.BatchNorm3d(out_channels)
-        self.swish = Swish()  
-        self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size=3)
-        self.bn2 = nn.BatchNorm3d(out_channels)
         self.dropout = nn.Dropout3d(p=0.15)
-        
-    def forward(self, x):
-        # Apply CONV => BN => Swish => CONV => BN => Swish => Dropout block to the inputs and return it
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.swish(x)
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = self.swish(x)
-        x = self.dropout(x)
-        return x
 
+    def forward(self, x, batchnorm=True):
+        if batchnorm:
+            return self.dropout(self.silu(self.bn2(self.conv2(self.silu(self.bn1(self.conv1(x)))))))
+        else:
+            return self.dropout(self.silu(self.conv2(self.silu(self.conv1(x)))))
 
-        
+  
+     
 
 class Encoder(nn.Module):
-    def __init__(self, channels=(2, 16, 32, 64)):
+    def __init__(self):
         super().__init__()
-        self.enc_block = nn.ModuleList(
-            [Block(channels[i], channels[i+1])
-                for i in range(len(channels) - 1)])
         self.pool = nn.MaxPool3d((2,2, 2))
 
     def forward(self, x):
         # initialize an empty list to store the intermediate outputs
         block_outputs = []
-
-        # loop through the encoder blocks
-        for block in self.enc_block:
-			# pass the inputs through the current encoder block, store
-			# the outputs, and then apply maxpooling on the output
-            x = block(x)
-            #print("encoder block",x.shape)
-            block_outputs.append(x)
-            x = self.pool(x)
-            #print("pooling",x.shape)
+        # pass the inputs through the encoder blocks, store
+        # the outputs, and then apply maxpooling on the output
+        x = Block(2, 16)(x, batchnorm =False)
+        #print("encoder block",x.shape)
+        block_outputs.append(x)
+        x = self.pool(x)
+        x = Block(16, 32)(x)
+        #print("encoder block",x.shape)
+        block_outputs.append(x)
+        x = self.pool(x)
+        x = Block(32, 64)(x)
+        #print("encoder block",x.shape)
+        block_outputs.append(x)
+        x = self.pool(x)
+        #print("last pooling",x.shape)
 		# return the list containing the intermediate outputs
         return x, block_outputs
 
-
 class Decoder(nn.Module):
-    def __init__(self, channels=(128, 64, 32, 16)):
+    def __init__(self):
         super().__init__()
-        self.channels = channels
-        self.up = nn.ModuleList(
-			[nn.ConvTranspose3d(channels[i], channels[i + 1], kernel_size=2, stride=2, padding=0)
-			 	for i in range(len(channels) - 1)])
-        self.dec_blocks = nn.ModuleList(
-			[Block(channels[i], channels[i + 1])
-			 	for i in range(len(channels) - 1)])
-    def forward(self, x, encFeatures):
+        self.up1 = nn.ConvTranspose3d(128, 64, kernel_size=2, stride=2, padding=0)
+        self.conv1 = Block(128,64)
+        self.up2 = nn.ConvTranspose3d(64, 32, kernel_size=2, stride=2, padding=0)
+        self.conv2 = Block(64,32)
+        self.up3 = nn.ConvTranspose3d(32, 16, kernel_size=2, stride=2, padding=0)
+        self.conv3 = Block(32,16)
+    def forward(self, x, skip):
 		# loop through the number of channels
-        for i in range(len(self.channels) - 1):
-			# pass the inputs through the upsampler blocks
-            x = self.up[i](x)
-            #print("upsampling",x.shape)
-			# crop the current features from the encoder blocks,
-			# concatenate them with the current upsampled features,
-			# and pass the concatenated output through the current
-			# decoder block
-            encFeat = self.crop(encFeatures[i], x)
-            #print("encFeat",encFeat.shape," x ",x.shape)
-            x = torch.cat([x, encFeat], dim=1)
-            #print("x after concat", x.shape)
-            x = self.dec_blocks[i](x)
-            #print("decoded",x.shape)
-		# return the final decoder output
+        #print('skip:', len(skip))
+        x = self.up1(x)
+        #print(x.shape, skip[0].shape)
+        x = torch.cat([x, skip[0]],axis=1) #([1, 64, 64, 64, 32])
+        #print(x.shape) #([1, 128, 64, 64, 32])
+        x = self.conv1(x)        
+        #print(x.shape) #([1, 64, 64, 64, 32])
+        x = self.up2(x)
+        #print(x.shape, skip[1].shape) #([1, 32, 128, 128, 64])
+        x = torch.cat([x, skip[1]],axis=1) #([1, 32, 128, 128, 64])
+        x = self.conv2(x)
+
+        x = self.up3(x)
+        #print(x.shape, skip[2].shape)
+        x = torch.cat([x, skip[2]],axis=1) #([1, 16, 256, 256, 128])
+        x = self.conv3(x)
+
         return x
     
-    def crop(self, encFeatures, x):
-        # Grab the dimensions of the inputs and crop the encoder features
-        # to match the spatial dimensions of x (H, W).
-        (_, _, D, H, W) = x.shape
-
-        # Assuming you want to crop the center region, you can calculate the starting
-        # indices for cropping as follows:
-        start_d = (encFeatures.shape[2] - D) // 2
-        start_h = (encFeatures.shape[3] - H) // 2
-        start_w = (encFeatures.shape[4] - W) // 2
-
-        # Crop the encoder features using PyTorch's slicing operations.
-        cropped_features = encFeatures[:, :, start_d:start_d+D, start_h:start_h+H, start_w:start_w+W]
-
-        # Return the cropped features
-        return cropped_features
-
-
 class Generator(nn.Module):
     """Creates the U-Net Architecture
     
@@ -168,20 +126,19 @@ class Generator(nn.Module):
     Returns:
         A batch of 3D matrix of energy depositions of size [BATCHSIZE*1*256*256*128]
     """
-    def __init__(self, encChannels=(2, 16, 32, 64)):
-        decChannels=(128,64, 32, 16)
+    def __init__(self):
         super().__init__()
 		# initialize the encoder and decoder
-        self.encoder = Encoder(encChannels)
-        self.decoder = Decoder(decChannels)
+        self.encoder = Encoder()
 
         """ Bottleneck """
-        self.b = Block(164, 128) #add 100 dimension for noise 
+        self.bottleneck = Block(164, 128) #add 100 dimension for noise 
+        
+        self.decoder = Decoder()
 
-        """ Classifier """
         self.outputs = nn.Sequential(
-                            nn.ConvTranspose3d(16, 1, kernel_size=1, padding=0),
-                            nn.Tanh(),
+                            nn.Conv3d(16, 1, kernel_size=1, padding=0),
+                            nn.Sigmoid(), #output value in the range [0,1]
         )
 
     def forward(self, x):
@@ -191,26 +148,26 @@ class Generator(nn.Module):
         #print("bottleneck {}".format(b.shape))
 
         # Concatenate input tensor and noise tensor along the channel dimension (dim=1)
-        add_noise = torch.cat([b, 
-                               torch.randn((x.shape[0], 100, b.shape[2], b.shape[3], b.shape[4]), 
-                                            device=b.device)], 
+        b= torch.cat((b, 
+                    torch.randn((x.shape[0], 100, b.shape[2], b.shape[3], b.shape[4]), 
+                                            device=b.device)), 
                                             dim=1)
-        #print("noise {}".format(add_noise.shape))
+        #print("noisy tensor {}".format(b.shape))
 
-        b = self.b(add_noise) 
+        b = self.bottleneck(b) 
         #print("bottleneck with noise {}".format(b.shape))
 
         # pass the encoder features through decoder making sure that
 		# their dimensions are suited for concatenation
         decFeatures = self.decoder(b, encFeatures[::-1][0:])
 
-        return self.outputs(decFeatures)
+        return  self.outputs(decFeatures)
 
 
-def initialize_weights(model):
+def initialize_weights(model, device):
     for m in model.modules():
         if isinstance(m, (nn.Conv3d, nn.ConvTranspose3d, nn.BatchNorm3d)):
-            m.weight.data = torch.randn(m.weight.data.shape)
+            m.weight.data = torch.randn(m.weight.data.shape).to(device)
             nn.init.normal_(m.weight.data, 0.0, 0.02)
 
 
@@ -255,16 +212,13 @@ def gradient_penalty(critic, real, fake, cond, device):
     #return torch.mean((slopes - 1)**2) # gradient_penalty
 
 # To test and see summary of models # uncomment below
-'''
-import torchinfo    
-from torchinfo import summary
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-gen = Generator(encChannels=(2, 16, 32, 64)).to(device)
-initialize_weights(gen)
+gen = Generator().to(device)
+initialize_weights(gen, device)
 critic = Critic3d().to(device)
-initialize_weights(critic)
+initialize_weights(critic, device)
 
 noise = torch.randn((1,100,16,16,8)).to(device) #Will be fed to generator's bottle neck
-summary(gen, input_size=[(1,2, 128, 64, 64)]) # do a test pass through of an example input size 
-summary(critic, input_size=[(8,1, 128, 64, 64),(8,2,128,64,64)])
-'''
+#summary(gen, input_size=[(1,2, 256, 256, 128)]) # do a test pass through of an example input size 
+summary(critic, input_size=[(8,1, 256, 256, 128),(8,2,256,256,128)])

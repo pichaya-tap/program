@@ -28,14 +28,11 @@ class CustomDataset(Dataset):
     
     # Transform with normalization with maximum value, resize, turn to torch and unsqueeze
     def __transform__(self, data, min_value_global, max_value_global):
-        print('transforming')
         #data = data.astype(np.float16) #Reduce Data Precision
         data = (data - min_value_global) / (max_value_global - min_value_global)  #In-place to save memory 
-        if np.isnan(data).any():
-            print("NaN values detected after min-max scaling")
-        data = resize(data)
-        if np.isnan(data).any():
-            print("NaN values detected after resize")
+        data = resize(data,(256, 256, 128))[:,60:188,:] # get 256x128x128
+
+        data = np.resize(data, (128,64,64))
         return torch.from_numpy(data).unsqueeze(dim=0)
     
 
@@ -56,49 +53,29 @@ class CustomDataset(Dataset):
         dosemap_water_file = f'DATASET_{energy}_{y}_{z}.npy' #Example DATASET_1500MeV_0_-121.5.npy
         print("dosemap_water_file:",dosemap_water_file)
         dosemap_water_path = os.path.join(self.dosemap_water_folder , dosemap_water_file)
-        # Check if the item is valid (not None)
-        if data is None:
-            raise ValueError(f"Invalid data at index {idx}")
-        if dosemap_water_path is None:
-            raise ValueError(f"Invalid dosemap_water at index {idx}")
-        
+
         # Check if the water_dosemap file exists
         if not os.path.exists(dosemap_water_path): # If not, skip this data sample
-            dummy_data = torch.ones((1,256,256,128))
-            dummy_conditional_input = torch.ones((2,256,256,128))
+            dummy_data = torch.ones((1,128,64,64))
+            dummy_conditional_input = torch.ones((2,128,64,64))
             # Avoid return None
             return dummy_data, dummy_conditional_input
      
         # Load the conditional input from the .npy file
         dosemap_water =  np.load(dosemap_water_path) 
-        # Check for NaN values in the input data
-        if np.isnan(data).any():
-            print("NaN values detected in data")
-        assert not np.any(np.isnan(dosemap_water)), "Dosemap water Input data contains NaN values."
-        # If there are no NaN values, proceed with calculations.
   
         # Transform
         transformed_data = self.__transform__(data,self.min_data, self.max_data )
         transformed_dosemap_water = self.__transform__(dosemap_water,self.min_dosemap_water, self.max_dosemap_water)
 
-        if transformed_data is None:
-            raise ValueError(f"Invalid data at index {idx}")
-        if transformed_dosemap_water is None:
-            raise ValueError(f"Invalid dosemap_water at index {idx}")
-        if self.transformed_density is None:
-            raise ValueError(f"Invalid density file")
-        if torch.isnan(transformed_dosemap_water).any() or torch.isinf(transformed_dosemap_water).any():
-            print("NaN or infinity values detected after transformed_dosemap_water.")
 
         # Concatenate dosemap in water and material density as conditional_input
         conditional_input = torch.cat([self.transformed_density, transformed_dosemap_water], dim=0) # in the shape (2,256,256,128)
-        if torch.isnan(transformed_dosemap_water).any() or torch.isinf(transformed_dosemap_water).any():
-            print("NaN or infinity values detected after concat with density.")
         return transformed_data , conditional_input
 
 
 
-def resize(data):
+def resize(data,target_size):
     """Resize with either padding or truncating
     Compare current data shape with target size then perform resize.
     
@@ -107,7 +84,7 @@ def resize(data):
     Returns:
          A 3D numpy array data with shape of target size.
     """
-    target_size = (256, 256, 128)
+
     current_size = data.shape
 
     if current_size == target_size:
@@ -121,12 +98,16 @@ def resize(data):
         end_idx = start_idx + target_size[0]
         start_idx_1 = (current_size[1] - target_size[1]) // 2
         end_idx_1 = start_idx_1 + target_size[1]
-        truncated_data = data[start_idx:end_idx, start_idx_1:end_idx_1, :target_size[2]]
+        start_idx_2 = (current_size[2] - target_size[2]) // 2
+        end_idx_2 = start_idx_2 + target_size[2]
+        truncated_data = data[start_idx:end_idx, start_idx_1:end_idx_1, start_idx_2:end_idx_2]
         return truncated_data
 
     # Padding the data
     padding = [(0, max(target_size[i] - current_size[i], 0)) for i in range(3)]
-    return np.pad(data, padding, mode='constant')
+    padded_data = np.pad(data, padding, mode='constant')
+
+    return padded_data
 
 
 

@@ -4,8 +4,15 @@ Contains functions for training and validating a model.
 import torch
 from model import gradient_penalty
 from typing import Tuple
-from utils import plot_dosemap, show_tensor_images
+from utils import plot_delta, show_tensor_images
 import gc
+
+def report_gpu():
+   print(torch.cuda.list_gpu_processes())
+   gc.collect()
+   torch.cuda.empty_cache()
+   print(f"{torch.cuda.memory_allocated()/(1024)} Kb")
+
 
 def cal_passing_rate(real,fake):
     """Returns:
@@ -14,7 +21,7 @@ def cal_passing_rate(real,fake):
     delta = torch.abs((fake - real) / (real.max())) #δ = (Dgen − Dsim)/ Dmax sim
     #number of voxel with delta < 1%
     passing_voxels = torch.sum(delta < 0.05, dim=(1, 2, 3, 4)).tolist()  #TEST! number of voxel with delta < %
-    batch_passing_rates = [(passing_voxel * 100) / (256 * 256 * 128) for passing_voxel in passing_voxels] #percent passing rate
+    batch_passing_rates = [round((passing_voxel * 100) / (256 * 256 * 128) ,2) for passing_voxel in passing_voxels] #percent passing rate
     return batch_passing_rates
 
 def train_step(gen,
@@ -23,12 +30,12 @@ def train_step(gen,
                opt_gen: torch.optim.Optimizer,
                opt_critic: torch.optim.Optimizer,
                LAMBDA_GP,
-               device: torch.device, 
-               writer_real,
-               writer_fake, 
-               step_real,
-               step_fake               
-               ):
+               device: torch.device ):
+               #writer_real,
+               #writer_fake, 
+               #step_real,
+               #step_fake               
+               
     
     """Trains a PyTorch model for a single epoch.
     Turns a model to training mode and then
@@ -51,7 +58,7 @@ def train_step(gen,
         Training loss per epoch and passing rate 1%       
         (epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate_1).
     """
-    gc.collect()
+    report_gpu()
     # Put model in train mode
     gen.train()
     critic.train()
@@ -65,36 +72,30 @@ def train_step(gen,
     # Loop through data loader data batches
     for batch_idx, (real, cond) in enumerate(train_loader): 
         print(f"Processing train batch {batch_idx}")
-        # Check for 'None' values in real and cond
-        if real is None or cond is None:
-            raise ValueError("Invalid data in batch. 'None' values found.")
-        # Check 'real' tensor for NaN or infinity values
-        if torch.isnan(real).any() or torch.isinf(real).any():
-            print("real tensor contains NaN or infinity values")
         # Send data to target device
         # Use .float() because of RuntimeError: expected scalar type Double but found Float
         real = real.float().to(device) 
         
         cond = cond.float().to(device) 
-        if torch.isnan(cond).any() or torch.isinf(cond).any():
-            print("cond tensor contains NaN or infinity values")
-        cur_batch_size = real.shape[0]
 
-        
+        cur_batch_size = real.shape[0]        
                      
         ########## Train Critic: max E[critic(real)] - E[critic(fake)]###########
         ########## equivalent to minimizing the negative of that #################
         # Update critics = CRITIC_ITERATIONS times before update the generator
         mean_iteration_critic_loss = 0
         for _ in range(CRITIC_ITERATIONS): 
+            report_gpu()
             # print('Training Critic')
-            fake = gen(cond).float().to(device)  
-            # Check 'fake' tensor for NaN or infinity values
-            if torch.isnan(fake).any() or torch.isinf(fake).any():
-                print("fake tensor contains NaN or infinity values")
+            fake = gen(cond)
+            
+            #print('fake shape :', fake.shape)  
+            #print('cond shape :', cond.shape) 
                            
             critic_fake = critic(fake.detach(), cond).reshape(-1)  
-            critic_real = critic(real, cond).reshape(-1)     
+            print("critic_fake ",critic_fake)
+            critic_real = critic(real, cond).reshape(-1)   
+            print("critic_real ",critic_real)  
             if not LAMBDA_GP ==0:
                 gp = gradient_penalty(critic, real, fake.detach(), cond, device=device)
                 
@@ -127,6 +128,9 @@ def train_step(gen,
         gen.zero_grad()
         fake_2 = gen(cond).float().to(device)
         crit_fake_pred = critic(fake_2, cond).reshape(-1)
+        
+        del cond
+        print("crit_fake_pred ",crit_fake_pred)
         loss_gen = -1.*torch.mean(crit_fake_pred)
         #loss_gen = torch.mean(critic_real)- torch.mean(critic_fake)   
         # Loss backward
@@ -139,31 +143,33 @@ def train_step(gen,
         ################### Performance metric ######################
         print('calculating passing rate...')
         batch_passing_rates = cal_passing_rate(real,fake_2)
+        del fake_2
        # Keep track of the passing_rate
         passing_rates += batch_passing_rates
 
 
         # Print losses occasionally and print to tensorboard
-        print(f"Batch {batch_idx}/{len(train_loader)} \
+        print(f" Batch {batch_idx}/{len(train_loader)} \
                     Loss critic: {mean_iteration_critic_loss:.4f}, loss generator: {loss_gen:.4f}")           
         print(f"Train passing rate(1%) :{batch_passing_rates}") 
-        if True: #batch_idx == 0: # To change to some number
-            with torch.no_grad():
-                print(f'add image to tensor board for step {step_real}')
-                step_real = plot_dosemap(real, writer_real, step_real)# step to see the progression
-                step_fake = plot_dosemap(fake_2, writer_fake, step_fake)
-                show_tensor_images(real,'/home/tappay01/test/runs/images_real' )
-                show_tensor_images(fake_2,'/home/tappay01/test/runs/images_fake' )
-      
+        #if True: #batch_idx == 0: # To change to some number
+            #with torch.no_grad():
+                #print(f'add image to tensor board for step {step_real}')
+                #step_real = plot_dosemap(real, writer_real, step_real)# step to see the progression
+                #step_fake = plot_dosemap(fake_2, writer_fake, step_fake)
+                
+                #show_tensor_images(real,'/home/tappay01/test/runs/images_real')
+                #show_tensor_images(fake_2,'/home/tappay01/test/runs/images_fake')
+                #plot_delta(real, fake_2, '/home/tappay01/test/runs/delta')
 
     # Calculate loss per epoch
     epoch_loss_gen = sum(generator_losses)/len(generator_losses)
     epoch_loss_critic = sum(critic_losses)/len(critic_losses)
     epoch_passing_rate = sum(passing_rates)/len(passing_rates)
-    writer_real.close()
-    writer_fake.close()
+    #writer_real.close()
+    #writer_fake.close()
 
-    return epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate, step_real, step_fake
+    return epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate #, step_real, step_fake
 
 ###############################End of: def train_step ####################################################
     

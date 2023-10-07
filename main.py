@@ -13,6 +13,7 @@ from pathlib import Path
 import time
 from tqdm import tqdm
 import pickle
+import gc
 
 from dataloader import CustomDataset, split
 from model import Critic3d, Generator, initialize_weights
@@ -28,14 +29,21 @@ torch.backends.cudnn.enabled=True # comment BatchNorm1d -> CUDNN_STATUS_NOT_SUPP
 # Enable cuDNN benchmark mode
 torch.backends.cudnn.benchmark = True
 
+def report_gpu():
+   print(torch.cuda.list_gpu_processes())
+   gc.collect()
+   torch.cuda.empty_cache()
+   print(f"{torch.cuda.memory_allocated()/(1024)} Kb")
+
 ######################### HYPERPARAMETER ##############################
 LEARNING_RATE = 1e-5 # could also use 2 lrs
 Z_DIM =100
-NUM_EPOCHS = 5
+NUM_EPOCHS = 1
 # CRITIC_ITERATIONS =5 #Parameter to update critic many times before update generator once.Change im engine
 # WEIGHT_CLIP = 0.01 #If use weight clipping. We use Wasserstein distance instead.
 LAMBDA_GP = 10 #Lambda for gradient penalty 
-BATCH_SIZE = 8 #To be 32 according to paper
+BATCH_SIZE = 16 #To be 32 according to paper
+print("BATCH_SIZE" ,BATCH_SIZE)
 
 #######################################################################
 ########################## DATA LOADING ###############################
@@ -45,24 +53,24 @@ data_folder = '/home/tappay01/data/data1/' #Dataset1
 water_dosemap_folder = '/home/tappay01/data/water/DATASET' #First conditional input 
 density_file = "/home/tappay01/data/DATASET_densities.npy" #Second conditional input
 print('create custom_dataset')
+
 #custom_dataset = CustomDataset(data_folder, water_dosemap_folder, density_file)
+#Save the custom dataset to a file
+#with open('/home/tappay01/data/custom_dataset3.pkl', 'wb') as file:
+ #   pickle.dump(custom_dataset, file)
 
-# Save the custom dataset to a file
-#with open('/home/tappay01/data/custom_dataset1.pkl', 'wb') as file:
-#    pickle.dump(custom_dataset, file)
-
-# Later, when you want to use the dataset again, you can load it from the file
-with open('/home/tappay01/data/custom_dataset1.pkl', 'rb') as file:
+#Later, when you want to use the dataset again, you can load it from the file
+with open('/home/tappay01/data/custom_dataset3.pkl', 'rb') as file:
     custom_dataset = pickle.load(file)
 
 print('# Split to train, validation, test subset')
-train_subset, val_subset, test_subset = split(custom_dataset, 0.9, 0.1, 0.0)
+train_subset, val_subset, test_subset = split(custom_dataset, 0.7, 0.2, 0.1)
 # Turn train, val and test custom Dataset into DataLoader's
 train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=False)
 val_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False)
 test_loader = DataLoader(test_subset, batch_size=BATCH_SIZE, shuffle=False)
 
-print("Total number of samples in the train dataset:", len(train_subset))
+print("Total number of1575 samples in the train dataset:", len(train_subset))
 print("Number of batches:", len(train_loader))
 print("Total number of samples in the validation dataset:", len(val_subset))
 print("Number of batches:", len(val_loader))
@@ -74,11 +82,10 @@ print("Number of batches:", len(test_loader))
 # Tensorboard set up
 log_dir = "/home/tappay01/test/runs/"+datetime.now().strftime("%m%d%H%M")+"/"
 writer_loss = SummaryWriter(os.path.join(log_dir, 'loss'))
-writer_passing_rate = SummaryWriter(os.path.join(log_dir, 'passing rate'))
+#writer_passing_rate = SummaryWriter(os.path.join(log_dir, 'passing rate'))
 writer_real = SummaryWriter(os.path.join(log_dir, 'real'))
-writer_fake = SummaryWriter(os.path.join(log_dir, 'fake'))
-step_real = 0 
-step_fake = 0 
+#step_real = 0 
+#step_fake = 0 
 # Create target directory
 target_dir_path = Path(log_dir)
 target_dir_path.mkdir(parents=True,exist_ok=True)
@@ -86,16 +93,21 @@ target_dir_path.mkdir(parents=True,exist_ok=True)
 
 #######################################################################
 ########################### INITIALIZE MODELS ##########################
-gen = Generator(encChannels=(2, 16, 32, 64)).to(device)
-initialize_weights(gen, device)
-critic = Critic3d().to(device)
-initialize_weights(critic, device)
-
+gen = Generator()
+initialize_weights(gen)
+gen = gen.to(device)
+critic = Critic3d()
+initialize_weights(critic)
+critic = critic.to(device)
+for param in gen.parameters():
+    param= param.to(device)
+for param in critic.parameters():
+    param= param.to(device)
 #######################################################################
 ################################ TRAIN MODELS ##########################
 #Set up optimizers for generator and critic
-opt_gen = optim.Adam(gen.parameters(), lr=LEARNING_RATE, betas=(0.0,0.9)) # Beta from paper
-opt_critic = optim.Adam(critic.parameters(), lr=LEARNING_RATE, betas=(0.0,0.9))
+opt_gen = optim.Adam(gen.parameters(), lr=LEARNING_RATE, betas=(0.0, 0.9)) 
+opt_critic = optim.Adam(critic.parameters(), lr=LEARNING_RATE, betas=(0.0, 0.9))
 
 
 # Create empty results dictionary
@@ -108,20 +120,14 @@ results = {"epoch_loss_gen": [],
 print("[INFO] training the network...")
 startTime = time.time()
 for e in tqdm(range(NUM_EPOCHS)): 
-    
-    epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate, step_real, step_fake  = train_step(
-                                                                                                gen, 
-                                                                                                critic,
-                                                                                                train_loader,
-                                                                                                opt_gen,
-                                                                                                opt_critic,
-                                                                                                LAMBDA_GP,
-                                                                                                device, 
-                                                                                                writer_real,
-                                                                                                writer_fake, 
-                                                                                                step_real,
-                                                                                                step_fake 
-                                                                                                )
+    report_gpu()
+    #epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate, step_real, step_fake   
+    epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate = train_step(gen, critic,train_loader,opt_gen,opt_critic,LAMBDA_GP,device) 
+                                                        #writer_real,
+                                                        #writer_fake, 
+                                                        #step_real,
+                                                        #step_fake 
+                                                        
     
     print('End of training step. Start validation step')
     val_passing_rate = val_step(gen, critic, val_loader, device)
@@ -131,13 +137,13 @@ for e in tqdm(range(NUM_EPOCHS)):
     results = update(results, epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate, val_passing_rate)
 
     # Add results to SummaryWriter
-    writer_loss.add_scalars(main_tag="Loss",
-                          tag_scalar_dict={"gen_loss": epoch_loss_gen,
-                                            "critic_loss": epoch_loss_critic},
-                          global_step=e)
-    writer_passing_rate.add_scalars(main_tag="Passing rate",
-                          tag_scalar_dict={"passing_rate_1": val_passing_rate},
-                          global_step=e)
+    #writer_loss.add_scalars(main_tag="Loss",
+                          #tag_scalar_dict={"gen_loss": epoch_loss_gen,
+                           #                 "critic_loss": epoch_loss_critic},
+                          #global_step=e)
+    #writer_passing_rate.add_scalars(main_tag="Passing rate",
+                          #tag_scalar_dict={"passing_rate_1": val_passing_rate},
+                          #global_step=e)
     
     # print the model training and validation information
     print("[INFO] EPOCH: {}/{}".format(e + 1, NUM_EPOCHS))
@@ -152,10 +158,10 @@ for e in tqdm(range(NUM_EPOCHS)):
         torch.save(obj=gen.state_dict(),f=target_dir_path/model_name) 
 
 # Close all the writers
-writer_real.close()
-writer_fake.close()
-writer_loss.close() 
-writer_passing_rate.close()
+#writer_real.close()
+#writer_fake.close()
+#writer_loss.close() 
+#writer_passing_rate.close()
 
 # display the total time needed to perform the training
 endTime = time.time()

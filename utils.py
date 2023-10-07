@@ -70,11 +70,14 @@ def show_tensor_images(batch_data, folder_path):
         dose_y = []
         dose_z = []
         for x in range(VOXELNUMBER_X):
-            dose_x.append(dose[x, int(max_index[1]),int(max_index[2])])
+            #dose_x.append(dose[x, int(max_index[1]),int(max_index[2])])
+            dose_x.append(np.sum(dose[x, :,:]))
         for y in range(VOXELNUMBER_Y):
-            dose_y.append(dose[int(max_index[0]),y,int(max_index[2])])
+            #dose_y.append(dose[int(max_index[0]),y,int(max_index[2])])
+            dose_y.append(np.sum(dose[:,y,:]))
         for z in range(VOXELNUMBER_Z):
-            dose_z.append(dose[int(max_index[0]), int(max_index[1]),z])
+            #dose_z.append(dose[int(max_index[0]), int(max_index[1]),z])
+            dose_z.append(np.sum(dose[:, :,z]))
         axs[i,0].plot(x_vals, dose_x)
         axs[i,0].set_yscale('linear')
         axs[i,0].set_xlabel('X [mm]')
@@ -191,4 +194,70 @@ def plot_dosemap(batch_data, tensorboard_writer:torch.utils.tensorboard.SummaryW
     
     plt.close(fig)  # Close the figure after using it
     return step + 1 
+
+
+def plot_delta(batch_esim,batch_egen, folder_path):
+
+    # Shape of voxel
+    VOXELNUMBER_X = 256
+    DELTA_X = 0.707031*2
+    x_vals = np.arange(-181, 181-DELTA_X, DELTA_X)
+    x_vals = x_vals + DELTA_X/2
+
+    #source_z = int(max_index[2])
+
+    esim = batch_esim[0].squeeze().numpy() # to get first sample in the batch as 3D shape and convert to numpy array
+    max_index = np.unravel_index(esim.argmax(), esim.shape)
+    egen = batch_egen[0].squeeze().numpy() # to get first sample in the batch as 3D shape and convert to numpy array
+    egen_1d = egen[:, max_index[1], max_index[2]]
+    esim_1d = esim[:, max_index[1], max_index[2]]
+    #Calculate delta 
+    delta = ((egen_1d / esim_1d) - 1) * 100
+    # Create the figure and subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+
+    # Plot Egen and Esim on the first plot
+    ax1.plot(x_vals, egen_1d, 'b-', label='Generated')
+    ax1.plot(x_vals, esim_1d, 'g-', label='Simulated')
+    ax1.set_ylabel('Dose')
+    ax1.legend(loc='upper right')
+
+    # Plot delta on the second plot
+    ax2.plot(x_vals, delta, 'r-', label='Delta')
+    ax2.set_xlabel('Depth (mm)')
+    ax2.set_ylabel(' ∆[%]')
+    ax2.set_ylim(-10, 10)
+
+    plt.suptitle('Comparisons of normalized simulated and generated energy deposition')
+    plt.tight_layout()
+ 
+
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    # Find the highest numbered file in the folder
+    existing_files = os.listdir(folder_path)
+    existing_numbers = []
+
+    for filename in existing_files:
+        if filename.endswith('.png'):
+            try:
+                number = int(filename.split('.')[0])
+                existing_numbers.append(number)
+            except ValueError:
+                pass
+
+    if existing_numbers:
+        next_number = max(existing_numbers) + 1
+    else:
+        next_number = 0
+    # Save the figure as an image (e.g., PNG)
+    filename = f'{next_number}.png'
+    fig.savefig(os.path.join(folder_path, filename))
+
+    # Close the figure to release resources (optional)
+    plt.close(fig)    
+
+
+    
+
 
