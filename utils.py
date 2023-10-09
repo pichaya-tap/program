@@ -41,7 +41,7 @@ def show_tensor_images(batch_data, folder_path):
     batch_size = batch_data.shape[0]
     VOXELNUMBER_X = 256
     VOXELNUMBER_Y = 256
-    VOXELNUMBER_Z = 128
+    VOXELNUMBER_Z = 126
 
     DELTA_Z = 2.5
     DELTA_X = 0.707031*2
@@ -53,7 +53,8 @@ def show_tensor_images(batch_data, folder_path):
     y_vals = np.arange(-181, 181-DELTA_Y, DELTA_Y)
     y_vals = y_vals + DELTA_Y/2
 
-    z_vals = np.arange(-200, 120, DELTA_Z)
+    z_vals = np.arange(-200, 115, DELTA_Z)
+    #z_vals = np.arange(-229,86, DELTA_Z)
     z_vals = z_vals + DELTA_Z/2
 
     # Create a batchx3 grid of subplots
@@ -64,20 +65,19 @@ def show_tensor_images(batch_data, folder_path):
     #source_z = int(max_index[2])
     for i in range(batch_size):
         dose = batch_data[i].squeeze().cpu().numpy() # from first sample data in batch to get 3D shape and convert to numpy array
+        dose = get_original_shape(dose)
         max_index = np.unravel_index(dose.argmax(), dose.shape)
 
         dose_x = []
         dose_y = []
         dose_z = []
         for x in range(VOXELNUMBER_X):
-            #dose_x.append(dose[x, int(max_index[1]),int(max_index[2])])
-            dose_x.append(np.sum(dose[x, :,:]))
+            dose_x.append(dose[x, int(max_index[1]),int(max_index[2])])
         for y in range(VOXELNUMBER_Y):
-            #dose_y.append(dose[int(max_index[0]),y,int(max_index[2])])
-            dose_y.append(np.sum(dose[:,y,:]))
+            dose_y.append(dose[int(max_index[0]),y,int(max_index[2])])
         for z in range(VOXELNUMBER_Z):
-            #dose_z.append(dose[int(max_index[0]), int(max_index[1]),z])
-            dose_z.append(np.sum(dose[:, :,z]))
+            dose_z.append(dose[int(max_index[0]), int(max_index[1]),z])
+
         axs[i,0].plot(x_vals, dose_x)
         axs[i,0].set_yscale('linear')
         axs[i,0].set_xlabel('X [mm]')
@@ -116,7 +116,21 @@ def show_tensor_images(batch_data, folder_path):
     # Close the figure to release resources (optional)
     plt.close(fig)    
 
-    
+def get_original_shape(smaller_tensor):
+    # Define the original shape
+    original_shape = (256, 256, 126)
+    # Create a tensor of zeros with the original shape
+    original_tensor = np.zeros(original_shape)
+
+    # Define the slice to insert the smaller tensor
+    slice_x = slice(60, 188)
+    slice_y = slice(75, 203)
+    slice_z = slice(18, 82)
+
+    # Insert the smaller tensor into the original tensor at the specified slice
+    original_tensor[slice_x, slice_y, slice_z] = smaller_tensor
+    return original_tensor
+  
 
 def plot_dosemap(batch_data, tensorboard_writer:torch.utils.tensorboard.SummaryWriter, step:int):
     """Plot one sample data in each batch
@@ -206,9 +220,10 @@ def plot_delta(batch_esim,batch_egen, folder_path):
 
     #source_z = int(max_index[2])
 
-    esim = batch_esim[0].squeeze().numpy() # to get first sample in the batch as 3D shape and convert to numpy array
+    esim = get_original_shape(batch_esim[0].squeeze().numpy()) # to get first sample in the batch as 3D shape and convert to numpy array
+
     max_index = np.unravel_index(esim.argmax(), esim.shape)
-    egen = batch_egen[0].squeeze().numpy() # to get first sample in the batch as 3D shape and convert to numpy array
+    egen = get_original_shape(batch_egen[0].squeeze().numpy()) # to get first sample in the batch as 3D shape and convert to numpy array
     egen_1d = egen[:, max_index[1], max_index[2]]
     esim_1d = esim[:, max_index[1], max_index[2]]
     #Calculate delta 

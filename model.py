@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-
 from torch.autograd import Variable
 
 class Critic3d(nn.Module):
@@ -31,7 +30,7 @@ class Critic3d(nn.Module):
             nn.Conv3d(256, 1, kernel_size=3, stride =2, padding =0, bias=False),
             nn.Flatten(),
             nn.Dropout3d(p=0.15),
-            nn.Linear(63,1) #1575 when original shape
+            nn.Linear(147,1) #1575 when original shape
             
         )
 
@@ -235,6 +234,6 @@ critic = Critic3d().to(device)
 initialize_weights(critic)
 
 noise = torch.randn((1,100,16,16,8)).to(device) #Will be fed to generator's bottle neck
-summary(gen, input_size=[(1,2, 128, 64, 64)]) # do a test pass through of an example input size 
-summary(critic, input_size=[(8,1, 128, 64, 64),(8,2,128,64,64)])
+summary(gen, input_size=[(1,2, 128, 128, 64)]) # do a test pass through of an example input size 
+summary(critic, input_size=[(8,1, 128, 128, 64),(8,2,128,128,64)])
 '''

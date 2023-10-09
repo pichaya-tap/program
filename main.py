@@ -38,11 +38,11 @@ def report_gpu():
 ######################### HYPERPARAMETER ##############################
 LEARNING_RATE = 1e-4 # could also use 2 lrs
 Z_DIM =100
-NUM_EPOCHS = 100
+NUM_EPOCHS = 1
 # CRITIC_ITERATIONS =5 #Parameter to update critic many times before update generator once.Change im engine
 # WEIGHT_CLIP = 0.01 #If use weight clipping. We use Wasserstein distance instead.
 LAMBDA_GP = 10 #Lambda for gradient penalty 
-BATCH_SIZE = 16 #To be 32 according to paper
+BATCH_SIZE = 8 #To be 32 according to paper
 print("BATCH_SIZE" ,BATCH_SIZE)
 
 #######################################################################
@@ -52,15 +52,18 @@ print('loading data as batch')
 data_folder = '/home/tappay01/data/data1/' #Dataset1
 water_dosemap_folder = '/home/tappay01/data/water/DATASET' #First conditional input 
 density_file = "/home/tappay01/data/DATASET_densities.npy" #Second conditional input
+density = np.load(density_file).transpose((2, 1, 0))[60:188,75:203,18:82]
+density = torch.from_numpy(density).unsqueeze(dim=0).float()
+print("density shape :",density.shape)
 print('create custom_dataset')
 
-#custom_dataset = CustomDataset(data_folder, water_dosemap_folder, density_file)
+#custom_dataset = CustomDataset(data_folder, water_dosemap_folder)
 #Save the custom dataset to a file
-#with open('/home/tappay01/data/custom_dataset3.pkl', 'wb') as file:
- #   pickle.dump(custom_dataset, file)
+#with open('/home/tappay01/data/custom_dataset5.pkl', 'wb') as file:
+#    pickle.dump(custom_dataset, file)
 
 #Later, when you want to use the dataset again, you can load it from the file
-with open('/home/tappay01/data/custom_dataset3.pkl', 'rb') as file:
+with open('/home/tappay01/data/custom_dataset5.pkl', 'rb') as file:
     custom_dataset = pickle.load(file)
 
 print('# Split to train, validation, test subset')
@@ -70,7 +73,7 @@ train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=False)
 val_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False)
 test_loader = DataLoader(test_subset, batch_size=BATCH_SIZE, shuffle=False)
 
-print("Total number of1575 samples in the train dataset:", len(train_subset))
+print("Total number of samples in the train dataset:", len(train_subset))
 print("Number of batches:", len(train_loader))
 print("Total number of samples in the validation dataset:", len(val_subset))
 print("Number of batches:", len(val_loader))
@@ -122,7 +125,7 @@ startTime = time.time()
 for e in tqdm(range(NUM_EPOCHS)): 
     report_gpu()
     #epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate, step_real, step_fake   
-    epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate = train_step(gen, critic,train_loader,opt_gen,opt_critic,LAMBDA_GP,device) 
+    epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate = train_step(gen, critic,train_loader,opt_gen,opt_critic,LAMBDA_GP,density, device) 
                                                         #writer_real,
                                                         #writer_fake, 
                                                         #step_real,
@@ -130,7 +133,7 @@ for e in tqdm(range(NUM_EPOCHS)):
                                                         
     
     print('End of training step. Start validation step')
-    val_passing_rate = val_step(gen, critic, val_loader, device)
+    val_passing_rate = val_step(gen, critic, val_loader, density, device)
 
 
     # Update results dictionary

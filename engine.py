@@ -93,8 +93,8 @@ def train_step(gen,
             # print('Training Critic')
             fake = gen(cond)
             
-            #print('fake shape :', fake.shape)  
-            #print('cond shape :', cond.shape) 
+            print('fake shape :', fake.shape)  
+            print('cond shape :', cond.shape) 
                            
             critic_fake = critic(fake.detach(), cond).reshape(-1)  
             print("critic_fake ",critic_fake)
@@ -145,7 +145,7 @@ def train_step(gen,
         ################### Performance metric ######################
         print('calculating passing rate...')
         batch_passing_rates = cal_passing_rate(real,fake_2)
-        del fake_2
+        
        # Keep track of the passing_rate
         passing_rates += batch_passing_rates
 
@@ -154,16 +154,16 @@ def train_step(gen,
         print(f" Batch {batch_idx}/{len(train_loader)} \
                     Loss critic: {mean_iteration_critic_loss:.4f}, loss generator: {loss_gen:.4f}")           
         print(f"Train passing rate(1%) :{batch_passing_rates}") 
-        #if True: #batch_idx == 0: # To change to some number
-            #with torch.no_grad():
+        if True: #batch_idx == 0: # To change to some number
+            with torch.no_grad():
                 #print(f'add image to tensor board for step {step_real}')
                 #step_real = plot_dosemap(real, writer_real, step_real)# step to see the progression
                 #step_fake = plot_dosemap(fake_2, writer_fake, step_fake)
-                
-                #show_tensor_images(real,'/home/tappay01/test/runs/images_real')
-                #show_tensor_images(fake_2,'/home/tappay01/test/runs/images_fake')
-                #plot_delta(real, fake_2, '/home/tappay01/test/runs/delta')
-
+                show_tensor_images(real.cpu(),'/home/tappay01/test/runs/images_real')
+                show_tensor_images(fake_2.cpu(),'/home/tappay01/test/runs/images_fake')
+                plot_delta(real.cpu(), fake_2.cpu(), '/home/tappay01/test/runs/delta')
+        del fake_2
+        del real
     # Calculate loss per epoch
     epoch_loss_gen = sum(generator_losses)/len(generator_losses)
     epoch_loss_critic = sum(critic_losses)/len(critic_losses)
