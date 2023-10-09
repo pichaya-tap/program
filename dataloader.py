@@ -16,11 +16,11 @@ class CustomDataset(Dataset):
         # Get all data paths
         self.paths = list(Path(data_folder).glob("*.npy"))
         self.dosemap_water_folder = conditional_folder
-        self.density = np.load(density_file).transpose((2, 1, 0))
+        #self.density = np.load(density_file).transpose((2, 1, 0))
         # calculate normalization parameters for both data and conditional input
         self.min_data, self.max_data = calculate_normalization_params(data_folder)
         self.min_dosemap_water, self.max_dosemap_water = calculate_normalization_params(conditional_folder)
-        self.transformed_density = self.__transform__(self.density, np.min(self.density), np.max(self.density))
+        #self.transformed_density = self.__transform__(self.density, np.min(self.density), np.max(self.density))
     # Overwrite the __len__() method 
     def __len__(self)-> int:
         "Returns the total number of samples."
@@ -33,7 +33,7 @@ class CustomDataset(Dataset):
         data = resize(data,(256, 256, 128))[:,60:188,:] # get 256x128x128
 
         data = np.resize(data, (128,64,64))
-        return torch.from_numpy(data).unsqueeze(dim=0)
+        return torch.from_numpy(data).unsqueeze(dim=0).float()
     
 
     # Overwrite the __getitem__() method 
@@ -56,8 +56,8 @@ class CustomDataset(Dataset):
 
         # Check if the water_dosemap file exists
         if not os.path.exists(dosemap_water_path): # If not, skip this data sample
-            dummy_data = torch.ones((1,128,64,64))
-            dummy_conditional_input = torch.ones((2,128,64,64))
+            dummy_data = torch.ones((1,128,64,64)).float()
+            dummy_conditional_input = torch.ones((1,128,64,64)).float()
             # Avoid return None
             return dummy_data, dummy_conditional_input
      
@@ -70,8 +70,8 @@ class CustomDataset(Dataset):
 
 
         # Concatenate dosemap in water and material density as conditional_input
-        conditional_input = torch.cat([self.transformed_density, transformed_dosemap_water], dim=0) # in the shape (2,256,256,128)
-        return transformed_data , conditional_input
+        # conditional_input = torch.cat([self.transformed_density, transformed_dosemap_water], dim=0) # in the shape (2,256,256,128)
+        return transformed_data , transformed_dosemap_water
 
 
 

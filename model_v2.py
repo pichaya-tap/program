@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-import torchinfo    
-from torchinfo import summary
+#import torchinfo    
+#from torchinfo import summary
 from torch.autograd import Variable
 
 class Critic3d(nn.Module):
@@ -31,7 +31,8 @@ class Critic3d(nn.Module):
 
             nn.Conv3d(256, 1, kernel_size=3, stride =2, padding =0, bias=False),
             nn.Flatten(),
-            nn.Linear(1575,1)
+            nn.Dropout3d(p=0.15),
+            nn.Linear(63,1) #1575 when original shape
             
         )
 
@@ -55,10 +56,15 @@ class Block(nn.Module):
     def forward(self, x, batchnorm=True):
         if batchnorm:
             return self.dropout(self.silu(self.bn2(self.conv2(self.silu(self.bn1(self.conv1(x)))))))
-        else:
-            return self.dropout(self.silu(self.conv2(self.silu(self.conv1(x)))))
 
-  
+        else:
+            x = self.conv1(x)
+            x = self.silu(x)
+            x = self.conv2(x)
+            x = self.silu(x)
+            x = self.dropout(x)
+            return x
+ 
      
 
 class Encoder(nn.Module):
@@ -71,6 +77,8 @@ class Encoder(nn.Module):
         block_outputs = []
         # pass the inputs through the encoder blocks, store
         # the outputs, and then apply maxpooling on the output
+        if torch.cuda.is_available():
+            x = x.cuda()
         x = Block(2, 16)(x, batchnorm =False)
         #print("encoder block",x.shape)
         block_outputs.append(x)
@@ -164,10 +172,11 @@ class Generator(nn.Module):
         return  self.outputs(decFeatures)
 
 
-def initialize_weights(model, device):
+def initialize_weights(model):
+    print('Initialize model_v2')
     for m in model.modules():
         if isinstance(m, (nn.Conv3d, nn.ConvTranspose3d, nn.BatchNorm3d)):
-            m.weight.data = torch.randn(m.weight.data.shape).to(device)
+            m.weight.data = torch.randn(m.weight.data.shape)
             nn.init.normal_(m.weight.data, 0.0, 0.02)
 
 
@@ -213,12 +222,12 @@ def gradient_penalty(critic, real, fake, cond, device):
 
 # To test and see summary of models # uncomment below
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-gen = Generator().to(device)
-initialize_weights(gen, device)
-critic = Critic3d().to(device)
-initialize_weights(critic, device)
+#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#gen = Generator().to(device)
+#initialize_weights(gen)
+#critic = Critic3d().to(device)
+#initialize_weights(critic)
 
-noise = torch.randn((1,100,16,16,8)).to(device) #Will be fed to generator's bottle neck
+#noise = torch.randn((1,100,16,16,8)).to(device) #Will be fed to generator's bottle neck
 #summary(gen, input_size=[(1,2, 256, 256, 128)]) # do a test pass through of an example input size 
-summary(critic, input_size=[(8,1, 256, 256, 128),(8,2,256,256,128)])
+#summary(critic, input_size=[(8,1, 256, 256, 128),(8,2,256,256,128)])

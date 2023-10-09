@@ -1,24 +1,22 @@
 #!/bin/bash
 #SBATCH --ntasks=14  # number of "tasks" (default: allocates 1 core per task)
-#SBATCH -t 0-02:00:00   # time in d-hh:mm:ss
+#SBATCH -t 3-00:00:00   # time in d-hh:mm:ss
 #SBATCH -o slurm.%j.out # file to save job's STDOUT (%j = JobId)
-# #SBATCH -e slurm.%j.err # file to save job's STDERR (%j = JobId)
+#SBATCH -e slurm.%j.err # file to save job's STDERR (%j = JobId)
 #SBATCH --mail-type=ALL # Send an e-mail when a job starts, stops, or fails
 #SBATCH --export=NONE   # Purge the job-submitting shell environment
 #SBATCH --gres=gpu
-#SBATCH --mem=112G # the job will need ...GB per node
+#SBATCH --mem=100000MB 
 
-
+hostname
 nvidia-smi
 echo $CUDA_VISIBLE_DEVICES
 echo
 echo "HOSTNAME = $HOSTNAME"
-
 echo "Running on ${SLURM_NPROCS} processor(s) on ${SLURM_NNODES} node(s)."
 echo "Running ${SLURM_GPUS_PER_NODE} GPUs."
 date
 echo
-
 convertsecs() {
     ((h=${1}/3600))
     ((m=(${1}%3600)/60))
@@ -32,10 +30,7 @@ export PATH="/home/tappay01/anaconda3/bin:$PATH"
 eval "$(conda shell.bash hook)"
 conda activate gpu
 
-
-
-python main.py 
-
+python main.py
 
 echo
 echo

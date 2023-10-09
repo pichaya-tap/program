@@ -58,34 +58,13 @@ class Block(nn.Module):
         self.relu = nn.ReLU()
         self.conv2 = nn.Conv3d(out_c, out_c, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm3d(out_c)
-
-    def forward(self, x):
-        return self.bn2(self.conv2(self.relu(self.bn1(self.conv1(x)))))
-    
-class Block_new(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        # Define convolutional layers, Swish activation, Batch Normalization, and Dropout
-        self.conv1 = nn.Conv3d(in_channels, out_channels, kernel_size=3)
-        self.bn1 = nn.BatchNorm3d(out_channels)
-        self.swish = Swish()  
-        self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size=3)
-        self.bn2 = nn.BatchNorm3d(out_channels)
+        self.silu = nn.SiLU()
         self.dropout = nn.Dropout3d(p=0.15)
-        
+
     def forward(self, x):
-        # Apply CONV => BN => Swish => CONV => BN => Swish => Dropout block to the inputs and return it
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.swish(x)
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = self.swish(x)
-        x = self.dropout(x)
-        return x
-
-
-        
+        return self.dropout(self.silu(self.bn2(self.conv2(self.silu(self.bn1(self.conv1(x)))))))
+    
+       
 
 class Encoder(nn.Module):
     def __init__(self, channels=(2, 16, 32, 64)):
@@ -129,15 +108,11 @@ class Decoder(nn.Module):
             x = self.up[i](x)
             #print("upsampling",x.shape)
 			# crop the current features from the encoder blocks,
-			# concatenate them with the current upsampled features,
-			# and pass the concatenated output through the current
-			# decoder block
             encFeat = self.crop(encFeatures[i], x)
-            #print("encFeat",encFeat.shape," x ",x.shape)
+			# concatenate them with the current upsampled features,
             x = torch.cat([x, encFeat], dim=1)
-            #print("x after concat", x.shape)
+			# and pass the concatenated output through the current decoder block
             x = self.dec_blocks[i](x)
-            #print("decoded",x.shape)
 		# return the final decoder output
         return x
     
@@ -180,8 +155,8 @@ class Generator(nn.Module):
 
         """ Classifier """
         self.outputs = nn.Sequential(
-                            nn.ConvTranspose3d(16, 1, kernel_size=1, padding=0),
-                            nn.Tanh(),
+                            nn.Conv3d(16, 1, kernel_size=1, padding=0), #??? ConvTranspose3d or nn.Conv3d
+                            nn.Sigmoid(), # or Tanh()?
         )
 
     def forward(self, x):
@@ -196,10 +171,8 @@ class Generator(nn.Module):
                                             device=b.device)], 
                                             dim=1)
         #print("noise {}".format(add_noise.shape))
-
         b = self.b(add_noise) 
         #print("bottleneck with noise {}".format(b.shape))
-
         # pass the encoder features through decoder making sure that
 		# their dimensions are suited for concatenation
         decFeatures = self.decoder(b, encFeatures[::-1][0:])
@@ -244,9 +217,6 @@ def gradient_penalty(critic, real, fake, cond, device):
         create_graph=True,
         retain_graph=True,
         only_inputs=True)[0] # get first element
-    
-    if torch.isnan(gradients).any():
-        print("Gradients contain NaN values")
 
     gradients = gradients.view(len(gradients), -1)
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()

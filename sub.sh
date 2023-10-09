@@ -3,11 +3,11 @@
 #MSUB -o job.$PBS_JOBID
 #MSUB -j oe
 #MSUB -N Example
-#MSUB -l nodes=1:ppn=2:gpus=2
-#MSUB -l mem=6gb
+#MSUB -l nodes=1:ppn=2:gpus=1
+#MSUB -l mem=2gb
 #MSUB -l feature=epyc7713
 #MSUB -q gpu
-#MSUB -l walltime=01:00:00
+#MSUB -l walltime=20:00:00
 #MSUB -d /home/tappay01/program
 
 
@@ -26,4 +26,4 @@ export PATH="/home/tappay01/anaconda3/bin/:$PATH"
 eval "$(conda shell.bash hook)"
 
 conda activate base
-python main.py 
+python main.py

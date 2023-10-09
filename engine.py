@@ -20,7 +20,7 @@ def cal_passing_rate(real,fake):
     """
     delta = torch.abs((fake - real) / (real.max())) #δ = (Dgen − Dsim)/ Dmax sim
     #number of voxel with delta < 1%
-    passing_voxels = torch.sum(delta < 0.05, dim=(1, 2, 3, 4)).tolist()  #TEST! number of voxel with delta < %
+    passing_voxels = torch.sum(delta < 0.05, dim=(1, 2, 3, 4)).tolist()  #TEST! number of voxel with delta < 5%
     batch_passing_rates = [round((passing_voxel * 100) / (256 * 256 * 128) ,2) for passing_voxel in passing_voxels] #percent passing rate
     return batch_passing_rates
 
@@ -30,6 +30,7 @@ def train_step(gen,
                opt_gen: torch.optim.Optimizer,
                opt_critic: torch.optim.Optimizer,
                LAMBDA_GP,
+               density,
                device: torch.device ):
                #writer_real,
                #writer_fake, 
@@ -72,13 +73,16 @@ def train_step(gen,
     # Loop through data loader data batches
     for batch_idx, (real, cond) in enumerate(train_loader): 
         print(f"Processing train batch {batch_idx}")
+        cur_batch_size = real.shape[0]    
         # Send data to target device
         # Use .float() because of RuntimeError: expected scalar type Double but found Float
-        real = real.float().to(device) 
+        real = real.to(device) 
+        print('real shape :', real.shape) 
+        cond = torch.cat([density.expand(cur_batch_size, -1, -1, -1, -1), cond], dim=1) 
+        cond = cond.to(device) 
+        print('cond shape :', cond.shape) 
         
-        cond = cond.float().to(device) 
 
-        cur_batch_size = real.shape[0]        
                      
         ########## Train Critic: max E[critic(real)] - E[critic(fake)]###########
         ########## equivalent to minimizing the negative of that #################
@@ -96,11 +100,8 @@ def train_step(gen,
             print("critic_fake ",critic_fake)
             critic_real = critic(real, cond).reshape(-1)   
             print("critic_real ",critic_real)  
-            if not LAMBDA_GP ==0:
-                gp = gradient_penalty(critic, real, fake.detach(), cond, device=device)
-                
-            else:gp=0
-            
+            gp = gradient_penalty(critic, real, fake.detach(), cond, device=device)                
+           
             # Calculate  and accumulate loss
             loss_critic = -(torch.mean(critic_real)- torch.mean(critic_fake)) + LAMBDA_GP*gp
             
@@ -111,11 +112,12 @@ def train_step(gen,
             critic.zero_grad()
             # Perform backpropagation
             loss_critic.backward(retain_graph=True) # True, able to reuse
+            '''
             #Weight clippling # add this to restrict the gradients to prevent them from becoming too large
             if LAMBDA_GP ==0:
                 for p in critic.parameters():
                     p.data.clamp_(-0.001, 0.001)
-
+            '''
             # Optimizer step to update model parameters
             opt_critic.step()       
         critic_losses += [mean_iteration_critic_loss]
@@ -176,6 +178,7 @@ def train_step(gen,
 def val_step(gen,
                critic,
                val_loader: torch.utils.data.DataLoader, 
+               density,
                device: torch.device               
                ):
     
@@ -201,15 +204,18 @@ def val_step(gen,
     # Turn on inference context manager
     with torch.inference_mode():
         # Loop over the validation set
-        for batch_idx, (real, cond) in enumerate(val_loader): 
+        for batch_idx, (real, cond) in enumerate(val_loader):
+            cur_batch_size = real.shape[0]    
             # print(f"Processing val batch {batch_idx}")
             # send the input to the device
-            real = real.float().to(device) #RuntimeError: expected scalar type Double but found Float
-            cond = cond.float().to(device) #RuntimeError: expected scalar type Double but found Float
-            cur_batch_size = real.shape[0]
-            noise = torch.randn(cur_batch_size, 100, 16, 16,8).float().to(device)
+            real = real.to(device) 
+            print('real shape :', real.shape) 
+            cond = torch.cat([density.expand(cur_batch_size, -1, -1, -1, -1), cond], dim=1) 
+            cond = cond.to(device) 
+            print('cond shape :', cond.shape) 
+  
             # Forward pass
-            fake = gen(cond).float().to(device)
+            fake = gen(cond)
 
             print('calculating passing rate...')
             batch_passing_rates = cal_passing_rate(real, fake)

@@ -5,7 +5,7 @@ import os
 import sys
 import getopt
 import itertools
-
+import time
 
 
 def main(argv):
@@ -72,12 +72,15 @@ def main(argv):
             # check if the target file exists already, skip
             if os.path.exists(file_path):
                 print(f"Warning: File '{file_path}' already exists. Skipping calculation.")
-                dosemap_sum += np.read(file_path)
+                dosemap_sum += np.load(file_path)
                 continue
             
-            print('-- Loading File {} --'.format(file))            
+            print('-- Loading File {} --'.format(file))   
+            start_time = time.time()  # Record the start time         
             data = pd.read_csv(file, sep = ',', skiprows = 11, names = ['X', 'Y', 'Z', 'Edep', 'Process', 'particle', 'E'])
-
+            end_time = time.time()  # Record the end time
+            elapsed_time = end_time - start_time  # Calculate the elapsed time in seconds
+            print(f"Time taken to read file: {elapsed_time} seconds")
             data_edep = data['Edep'].values
             
 
@@ -90,9 +93,11 @@ def main(argv):
                         
             # we want shape (283,283,160) -> (z,y,x)
             data_for_hist = data[['Z', 'Y', 'X']]                  
-            
+            start_time = time.time()  # Record the start time 
             dosemap, edges = np.histogramdd(data_for_hist.values, bins = (VOXELNUMBER_Z, VOXELNUMBER_Y, VOXELNUMBER_X), range = ((-200, 200),(-200, 200),(-200, 200)), weights = data_edep)
-            #dosemap_shape = (283, 283, 160)
+            end_time = time.time()  # Record the end time
+            elapsed_time = end_time - start_time  # Calculate the elapsed time in seconds
+            print(f"Time taken for histogram: {elapsed_time} seconds")#dosemap_shape = (283, 283, 160)
             # edges_shape: list with 3 arrays, containing the edges
             print(dosemap.shape)
     #########################################################################################
