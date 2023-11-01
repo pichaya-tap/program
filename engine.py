@@ -20,8 +20,9 @@ def cal_passing_rate(real,fake):
     """
     delta = torch.abs((fake - real) / (real.max())) #δ = (Dgen − Dsim)/ Dmax sim
     #number of voxel with delta < 1%
+    total_voxel = real.shape[2]*real.shape[3]*real.shape[4]
     passing_voxels = torch.sum(delta < 0.05, dim=(1, 2, 3, 4)).tolist()  #TEST! number of voxel with delta < 5%
-    batch_passing_rates = [round((passing_voxel * 100) / (256 * 256 * 128) ,2) for passing_voxel in passing_voxels] #percent passing rate
+    batch_passing_rates = [round(passing_voxel * 100 / total_voxel ,2) for passing_voxel in passing_voxels] #percent passing rate
     return batch_passing_rates
 
 def train_step(gen,
@@ -97,9 +98,9 @@ def train_step(gen,
             print('cond shape :', cond.shape) 
                            
             critic_fake = critic(fake.detach(), cond).reshape(-1)  
-            print("critic_fake ",critic_fake)
+            #print("critic_fake ",critic_fake)
             critic_real = critic(real, cond).reshape(-1)   
-            print("critic_real ",critic_real)  
+            #print("critic_real ",critic_real)  
             gp = gradient_penalty(critic, real, fake.detach(), cond, device=device)                
            
             # Calculate  and accumulate loss
@@ -120,6 +121,7 @@ def train_step(gen,
             '''
             # Optimizer step to update model parameters
             opt_critic.step()       
+            del(fake)
         critic_losses += [mean_iteration_critic_loss]
             
 
@@ -144,7 +146,9 @@ def train_step(gen,
 
         ################### Performance metric ######################
         print('calculating passing rate...')
-        batch_passing_rates = cal_passing_rate(real,fake_2)
+        print('fake_2 shape :', fake_2.shape)  
+        print('real shape :', real.shape) 
+        batch_passing_rates = cal_passing_rate(real.detach(),fake_2.detach())
         
        # Keep track of the passing_rate
         passing_rates += batch_passing_rates
@@ -159,9 +163,9 @@ def train_step(gen,
                 #print(f'add image to tensor board for step {step_real}')
                 #step_real = plot_dosemap(real, writer_real, step_real)# step to see the progression
                 #step_fake = plot_dosemap(fake_2, writer_fake, step_fake)
-                show_tensor_images(real.cpu(),'/home/tappay01/test/runs/images_real')
-                show_tensor_images(fake_2.cpu(),'/home/tappay01/test/runs/images_fake')
-                plot_delta(real.cpu(), fake_2.cpu(), '/home/tappay01/test/runs/delta')
+                show_tensor_images(real.detach().cpu(),'/home/tappay01/test/runs/images_real')
+                show_tensor_images(fake_2.detach().cpu(),'/home/tappay01/test/runs/images_fake')
+                plot_delta(real.detach().cpu(), fake_2.detach().cpu(), '/home/tappay01/test/runs/delta')
         del fake_2
         del real
     # Calculate loss per epoch
@@ -218,7 +222,7 @@ def val_step(gen,
             fake = gen(cond)
 
             print('calculating passing rate...')
-            batch_passing_rates = cal_passing_rate(real, fake)
+            batch_passing_rates = cal_passing_rate(real.detach(), fake.detach())
             # Keep track of the passing_rate
             passing_rates += batch_passing_rates
 

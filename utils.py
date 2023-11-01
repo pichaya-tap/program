@@ -58,7 +58,7 @@ def show_tensor_images(batch_data, folder_path):
     z_vals = z_vals + DELTA_Z/2
 
     # Create a batchx3 grid of subplots
-    fig, axs = plt.subplots(batch_size, 3, figsize=(10, 8))# plot only 1 row
+    fig, axs = plt.subplots(batch_size, 3, figsize=(10, 10))# plot only 1 row
 
     
     #source_y = int(max_index[1]) # it is not exact as source position

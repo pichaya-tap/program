@@ -36,9 +36,9 @@ def report_gpu():
    print(f"{torch.cuda.memory_allocated()/(1024)} Kb")
 
 ######################### HYPERPARAMETER ##############################
-LEARNING_RATE = 1e-4 # could also use 2 lrs
+LEARNING_RATE = 1e-5 # could also use 2 lrs
 Z_DIM =100
-NUM_EPOCHS = 1
+NUM_EPOCHS = 50
 # CRITIC_ITERATIONS =5 #Parameter to update critic many times before update generator once.Change im engine
 # WEIGHT_CLIP = 0.01 #If use weight clipping. We use Wasserstein distance instead.
 LAMBDA_GP = 10 #Lambda for gradient penalty 
@@ -64,14 +64,14 @@ print('create custom_dataset')
 
 #Later, when you want to use the dataset again, you can load it from the file
 with open('/home/tappay01/data/custom_dataset5.pkl', 'rb') as file:
-    custom_dataset = pickle.load(file)
+   custom_dataset = pickle.load(file)
 
 print('# Split to train, validation, test subset')
 train_subset, val_subset, test_subset = split(custom_dataset, 0.9, 0.1, 0.0)
 # Turn train, val and test custom Dataset into DataLoader's
-train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=False)
-val_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False)
-test_loader = DataLoader(test_subset, batch_size=BATCH_SIZE, shuffle=False)
+train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
+val_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
+test_loader = DataLoader(test_subset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
 
 print("Total number of samples in the train dataset:", len(train_subset))
 print("Number of batches:", len(train_loader))
@@ -159,6 +159,10 @@ for e in tqdm(range(NUM_EPOCHS)):
         model_name = f"model_epoch{e}.pth"
         # Save the model state_dict()
         torch.save(obj=gen.state_dict(),f=target_dir_path/model_name) 
+
+model_name = f"model_epoch{e}.pth"
+# Save the model state_dict()
+torch.save(obj=gen.state_dict(),f=target_dir_path/model_name) 
 
 # Close all the writers
 #writer_real.close()
