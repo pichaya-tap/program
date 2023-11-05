@@ -31,8 +31,7 @@ def train_step(gen,
                opt_gen: torch.optim.Optimizer,
                opt_critic: torch.optim.Optimizer,
                LAMBDA_GP,
-               density,
-               device: torch.device ):
+               device: torch.device):
                #writer_real,
                #writer_fake, 
                #step_real,
@@ -60,7 +59,7 @@ def train_step(gen,
         Training loss per epoch and passing rate 1%       
         (epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate_1).
     """
-    report_gpu()
+    #report_gpu()
     # Put model in train mode
     gen.train()
     critic.train()
@@ -72,17 +71,15 @@ def train_step(gen,
     CRITIC_ITERATIONS =5 # Update critics = CRITIC_ITERATIONS times before update the generator
 
     # Loop through data loader data batches
-    for batch_idx, (real, cond) in enumerate(train_loader): 
+    for batch_idx, (real,cond, water_tensor, density_tensor, data_name) in enumerate(train_loader): 
         print(f"Processing train batch {batch_idx}")
         cur_batch_size = real.shape[0]    
         # Send data to target device
         # Use .float() because of RuntimeError: expected scalar type Double but found Float
         real = real.to(device) 
         print('real shape :', real.shape) 
-        cond = torch.cat([density.expand(cur_batch_size, -1, -1, -1, -1), cond], dim=1) 
         cond = cond.to(device) 
-        print('cond shape :', cond.shape) 
-        
+        print('cond shape :', cond.shape)         
 
                      
         ########## Train Critic: max E[critic(real)] - E[critic(fake)]###########
@@ -90,12 +87,9 @@ def train_step(gen,
         # Update critics = CRITIC_ITERATIONS times before update the generator
         mean_iteration_critic_loss = 0
         for _ in range(CRITIC_ITERATIONS): 
-            report_gpu()
+            #report_gpu()
             # print('Training Critic')
             fake = gen(cond)
-            
-            print('fake shape :', fake.shape)  
-            print('cond shape :', cond.shape) 
                            
             critic_fake = critic(fake.detach(), cond).reshape(-1)  
             #print("critic_fake ",critic_fake)
@@ -134,7 +128,7 @@ def train_step(gen,
         crit_fake_pred = critic(fake_2, cond).reshape(-1)
         
         del cond
-        print("crit_fake_pred ",crit_fake_pred)
+        #print("crit_fake_pred ",crit_fake_pred)
         loss_gen = -1.*torch.mean(crit_fake_pred)
         #loss_gen = torch.mean(critic_real)- torch.mean(critic_fake)   
         # Loss backward
@@ -146,8 +140,6 @@ def train_step(gen,
 
         ################### Performance metric ######################
         print('calculating passing rate...')
-        print('fake_2 shape :', fake_2.shape)  
-        print('real shape :', real.shape) 
         batch_passing_rates = cal_passing_rate(real.detach(),fake_2.detach())
         
        # Keep track of the passing_rate
@@ -158,14 +150,14 @@ def train_step(gen,
         print(f" Batch {batch_idx}/{len(train_loader)} \
                     Loss critic: {mean_iteration_critic_loss:.4f}, loss generator: {loss_gen:.4f}")           
         print(f"Train passing rate(1%) :{batch_passing_rates}") 
-        if True: #batch_idx == 0: # To change to some number
+        if  batch_idx == 0: # To change to some number
             with torch.no_grad():
                 #print(f'add image to tensor board for step {step_real}')
                 #step_real = plot_dosemap(real, writer_real, step_real)# step to see the progression
                 #step_fake = plot_dosemap(fake_2, writer_fake, step_fake)
-                show_tensor_images(real.detach().cpu(),'/home/tappay01/test/runs/images_real')
-                show_tensor_images(fake_2.detach().cpu(),'/home/tappay01/test/runs/images_fake')
-                plot_delta(real.detach().cpu(), fake_2.detach().cpu(), '/home/tappay01/test/runs/delta')
+                show_tensor_images(real.detach().cpu(),'/home/tappay01/test/runs/images_real',data_name)
+                show_tensor_images(fake_2.detach().cpu(),'/home/tappay01/test/runs/images_fake',data_name)
+                plot_delta(real.detach().cpu(), fake_2.detach().cpu(), '/home/tappay01/test/runs/delta',data_name)
         del fake_2
         del real
     # Calculate loss per epoch
@@ -182,7 +174,6 @@ def train_step(gen,
 def val_step(gen,
                critic,
                val_loader: torch.utils.data.DataLoader, 
-               density,
                device: torch.device               
                ):
     
@@ -208,13 +199,12 @@ def val_step(gen,
     # Turn on inference context manager
     with torch.inference_mode():
         # Loop over the validation set
-        for batch_idx, (real, cond) in enumerate(val_loader):
+        for batch_idx, (real,cond, water_tensor, density_tensor, data_name) in enumerate(val_loader): 
             cur_batch_size = real.shape[0]    
             # print(f"Processing val batch {batch_idx}")
             # send the input to the device
             real = real.to(device) 
             print('real shape :', real.shape) 
-            cond = torch.cat([density.expand(cur_batch_size, -1, -1, -1, -1), cond], dim=1) 
             cond = cond.to(device) 
             print('cond shape :', cond.shape) 
   

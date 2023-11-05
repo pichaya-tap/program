@@ -6,74 +6,148 @@ from pathlib import Path
 from typing import Tuple
 import random
 from torch.utils.data import Subset
+import glob
+
+def to_voxel(position, axis):
+    '''find voxel number as integer from position in mm. 
+    Axis number representation 
+    0 = z, 1 = y, 2 = x (beam)
+    '''
+    DELTA_Z = 2.5
+    DELTA_X = 0.707031*2
+    DELTA_Y = 0.707031*2
+    if axis ==0:
+        voxel = (position + 229) /DELTA_Z
+    if axis ==1:
+        voxel = (position + 181) /DELTA_Y
+    if axis ==2:
+        voxel = (position + 181) /DELTA_X
+    return int(voxel) 
+
+
+def extract_centered_subsample(data, z, y, x):
+    half_z = 8  # half of 16
+    half_y = 8  # half of 16
+    sample = data[z-half_z:z+half_z, y-half_y:y+half_y, x[0]:x[1]]
+    return sample
+
+def extract_from_filename(filename, param):
+    """Extracts energy value from the given filename."""
+    parts = filename.split('_')
+    if param == 'y':
+        return float(parts[2][:-2])
+    if param == 'z':
+        return float(parts[3][:-6])
+    if param == 'energy':
+        return parts[1]
+    else:
+        return None
+
+def find_corresponding_file_in_folder(energy, folder):
+    """Returns the path of the corresponding file based on the energy value."""
+    target_filename = f"DATASET_{energy}.npy"
+    return os.path.join(folder, target_filename)
+
+
 
 # Write a custom dataset class (inherits from torch.utils.data.Dataset)
+
 class CustomDataset(Dataset):
-
-    # Initialize with a data_folder, conditional_folder, density_file path.
-    def __init__(self, data_folder, conditional_folder):
-        # Create class attributes
-        # Get all data paths
-        self.paths = list(Path(data_folder).glob("*.npy"))
-        self.dosemap_water_folder = conditional_folder
-        #self.density = np.load(density_file).transpose((2, 1, 0))
-        # calculate normalization parameters for both data and conditional input
-        self.min_data, self.max_data = calculate_normalization_params(data_folder)
-        self.min_dosemap_water, self.max_dosemap_water = calculate_normalization_params(conditional_folder)
-        #self.transformed_density = self.__transform__(self.density, np.min(self.density), np.max(self.density))
-    # Overwrite the __len__() method 
-    def __len__(self)-> int:
-        "Returns the total number of samples."
-        return len(self.paths)
-    
-    # Transform with normalization with maximum value, resize, turn to torch and unsqueeze
-    def __transform__(self, data, min_value_global, max_value_global):
-        #data = data.astype(np.float16) #Reduce Data Precision
-        data = (data - min_value_global) / (max_value_global - min_value_global)  #In-place to save memory 
-        data = resize(data,(256, 256, 126))[60:188,75:203,18:82] # to get 128*128*64
-
-        return torch.from_numpy(data).unsqueeze(dim=0).float()
-    
-
-    # Overwrite the __getitem__() method 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        "Returns one sample of data and its matching condition input."
-        data_path = self.paths[idx]
-        # Extract the condition parameters from the data_file name
-        filename = os.path.basename(data_path) # Example "Data1_1500MeV_0Mm_-121.5Mm.npy"
-        energy = filename.split('_')[1] # Example energy=1500MeV
-        y,z = filename.split('_')[2][:-2],filename.split('_')[3][:-6] # Example y=0 and z=-121.5
-
-        # Load data from the .npy file
-        print("Data path:", data_path)
-        data = np.load(data_path) 
+    def __init__(self, data_folder, density_folder,water_folder, normalization='minmax'):
+        x_range = [60, 188]
         
-        # Find the corresponding conditional input file based on the condition
-        dosemap_water_file = f'DATASET_{energy}_{y}_{z}.npy' #Example DATASET_1500MeV_0_-121.5.npy
-        print("dosemap_water_file:",dosemap_water_file)
-        dosemap_water_path = os.path.join(self.dosemap_water_folder , dosemap_water_file)
+        self.data_samples = []
+        self.density_samples = []
 
-        # Check if the water_dosemap file exists
-        if not os.path.exists(dosemap_water_path): # If not, skip this data sample
-            dtype = torch.float32
-            # Create a tensor with small positive values. # Avoid return None or zero
-            epsilon = 1e-6  # You can adjust this
-            dummy_data = torch.rand((1,128,128,64), dtype=dtype) * epsilon
-            dummy_conditional_input = torch.rand((1,128,128,64), dtype=dtype) * epsilon           
-            return dummy_data, dummy_conditional_input
-     
-        # Load the conditional input from the .npy file
-        dosemap_water =  np.load(dosemap_water_path) 
+        self.data_names = []
+        self.water_samples = []
+
+        data_files = glob.glob(os.path.join(data_folder, "*.npy"))           
+
+        # Extract samples first without normalization
+        for data_file in data_files:
+            data = np.load(data_file)
+            filename = os.path.basename(data_file) # Example "Data1_1500MeV_0Mm_-121.5Mm.npy"
+            y = extract_from_filename(filename, 'y')
+            z = extract_from_filename(filename, 'z')  # Example y=0 and z=-121.5
+            y_voxel = to_voxel(y,1)
+            z_voxel = to_voxel(z,0)
+            sample = extract_centered_subsample(data, z_voxel, y_voxel, x_range)
+            self.data_samples.append(sample)  
+            self.data_names.append(filename)
+
+            density_file = filename.split('_')[0]+'.npy' # Example Data1, Data2
+            density = np.load(os.path.join(density_folder, density_file))
+            density_sample = extract_centered_subsample(density, z_voxel, y_voxel, x_range)
+            self.density_samples.append(density_sample)
+
+
+            energy = extract_from_filename(filename, 'energy')
+            watersim_path = find_corresponding_file_in_folder(energy, water_folder)
+            if not os.path.exists(watersim_path):                
+                print(f"Water simulation file not found for {energy}")
+                watersim_path = find_corresponding_file_in_folder('2750MeV', water_folder) #as default
+            watersim = np.load(watersim_path)/10 #ratio of primary particles or histories (Water simulation n=10^8 and Phantom simulation n=10^7)
+            water_sample= extract_centered_subsample(watersim, 80, 141, [60,188])
+            self.water_samples.append(water_sample)
+            
+        # Thresholding
+        dose_threshold= 0.1# Set a threshold for values consider close to 0
+        density_threshold = 1.5 # Set a threshold to limit outliers
+        self.data_samples = [np.where(np.abs(sample) < dose_threshold, 0, sample) for sample in self.data_samples]
+        self.water_samples = [np.where(np.abs(sample) < dose_threshold, 0, sample) for sample in self.water_samples]
+        self.density_samples = [np.where(sample > density_threshold, density_threshold, sample) 
+                        for sample in self.density_samples]
+        # Normalize the data_samples
+        all_data = np.array(self.data_samples)
+        if normalization == 'zscore':
+            mean = np.mean(all_data)
+            std = np.std(all_data)
+            self.data_samples = [(sample - mean) / std for sample in self.data_samples]
+            
+        elif normalization == 'minmax':
+            data_min = np.min(all_data)
+            data_range = np.max(all_data) - data_min
+            self.data_samples = [(sample - data_min) / data_range for sample in self.data_samples]
+
+        # Similarly, normalize the density_samples 
+        all_density = np.array(self.density_samples)
+        if normalization == 'zscore':
+            mean = np.mean(all_density)
+            std = np.std(all_density)
+            self.density_samples = [(sample - mean) / std for sample in self.density_samples]
+       
+        elif normalization == 'minmax':
+            density_min = np.min(all_density)
+            density_range = np.max(all_density) - density_min
+            self.density_samples = [(sample - density_min) / density_range for sample in self.density_samples]
   
-        # Transform
-        transformed_data = self.__transform__(data,self.min_data, self.max_data )
-        transformed_dosemap_water = self.__transform__(dosemap_water,self.min_dosemap_water, self.max_dosemap_water)
-        print("data.shape :",transformed_data.shape)
-        print("dosemap water.shape :",transformed_dosemap_water.shape)
 
-        # Concatenate dosemap in water and material density as conditional_input
-        # conditional_input = torch.cat([self.transformed_density, transformed_dosemap_water], dim=0) # in the shape (2,256,256,128)
-        return transformed_data , transformed_dosemap_water
+        # Similarly, normalize the water_samples 
+        all_water = np.array(self.water_samples)
+        if normalization == 'zscore':
+            mean = np.mean(all_water)
+            std = np.std(all_water)
+            self.water_samples = [(sample - mean) / std for sample in self.water_samples]
+
+        elif normalization == 'minmax':
+            water_min = np.min(all_water)
+            water_range = np.max(all_water) - water_min
+            self.water_samples = [(sample - water_min) / water_range for sample in self.water_samples]
+
+    def __len__(self):
+        return len(self.data_samples)
+
+    def __getitem__(self, idx):
+        data_tensor = torch.tensor(self.data_samples[idx], dtype=torch.float32).unsqueeze(0)  # Add channel dimension
+        density_tensor = torch.tensor(self.density_samples[idx], dtype=torch.float32).unsqueeze(0)  # Add channel dimension
+        data_name = self.data_names[idx]
+        water_tensor = torch.tensor(self.water_samples[idx], dtype=torch.float32).unsqueeze(0) 
+        # Concatenate along the channel dimension
+        condition = torch.cat([water_tensor, density_tensor], dim=0)
+        
+        return data_tensor,condition, water_tensor, density_tensor, data_name
+
 
 
 
@@ -113,39 +187,6 @@ def resize(data,target_size):
 
 
 
-def calculate_normalization_params(data_folder):
-    """Calculate normalization parameters
-    Find maximum and minimum value among all data files with extension.npy in the directory.
-    
-    Args:
-        data_folder: A directory where data is located.
-    Returns:
-         A minimum and maximum value of the data.
-    """
-    # Calculate global min and max values across the dataset
-    print('calculate_normalization_params')
-    min_value_global = np.inf
-    max_value_global = -np.inf
-    for file_name in os.listdir(data_folder):
-        file_path = os.path.join(data_folder, file_name)
-        # Check if the file is a valid numpy file (modify as needed)
-        if file_name.endswith('.npy'):
-            data = np.load(file_path)
-            print(file_path)
-            min_value_global = min(min_value_global, np.min(data))
-            max_value_global = max(max_value_global, np.max(data))
-            '''
-            try:
-                # Load the data from the file
-                data = np.load(file_path)
-                print(file_path)
-                min_value_global = min(min_value_global, np.min(data))
-                max_value_global = max(max_value_global, np.max(data))
-            except Exception as e:
-                print(f"Error processing file {file_name}: {str(e)}")
-            '''
-    print('return min_value_global, max_value_global', min_value_global, max_value_global)
-    return min_value_global, max_value_global
 
 
 def split(custom_dataset,

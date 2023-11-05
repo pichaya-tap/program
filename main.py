@@ -38,38 +38,36 @@ def report_gpu():
 ######################### HYPERPARAMETER ##############################
 LEARNING_RATE = 1e-5 # could also use 2 lrs
 Z_DIM =100
-NUM_EPOCHS = 50
+NUM_EPOCHS = 200
 # CRITIC_ITERATIONS =5 #Parameter to update critic many times before update generator once.Change im engine
 # WEIGHT_CLIP = 0.01 #If use weight clipping. We use Wasserstein distance instead.
 LAMBDA_GP = 10 #Lambda for gradient penalty 
-BATCH_SIZE = 8 #To be 32 according to paper
+BATCH_SIZE = 32 #To be 32 according to paper
 print("BATCH_SIZE" ,BATCH_SIZE)
 
 #######################################################################
 ########################## DATA LOADING ###############################
 print('loading data as batch')
 
-data_folder = '/home/tappay01/data/data1/' #Dataset1
-water_dosemap_folder = '/home/tappay01/data/water/DATASET' #First conditional input 
-density_file = "/home/tappay01/data/DATASET_densities.npy" #Second conditional input
-density = np.load(density_file).transpose((2, 1, 0))[60:188,75:203,18:82]
-density = torch.from_numpy(density).unsqueeze(dim=0).float()
-print("density shape :",density.shape)
-print('create custom_dataset')
+data_folder = "/scratch/tappay01/data/data1" #Dataset1
+density_folder = "/scratch/tappay01/densities"
+water_folder = "/scratch/tappay01/watersimulation/DATASET"
 
-#custom_dataset = CustomDataset(data_folder, water_dosemap_folder)
+dataset = CustomDataset(data_folder, density_folder, water_folder)
+print(len(dataset))
 #Save the custom dataset to a file
-#with open('/home/tappay01/data/custom_dataset5.pkl', 'wb') as file:
-#    pickle.dump(custom_dataset, file)
+saved_dataset = '/scratch/tappay01/custom_dataset.pkl'
+#with open(saved_dataset, 'wb') as file:
+#    pickle.dump(dataset, file)
 
 #Later, when you want to use the dataset again, you can load it from the file
-with open('/home/tappay01/data/custom_dataset5.pkl', 'rb') as file:
-   custom_dataset = pickle.load(file)
+with open(saved_dataset, 'rb') as file:
+   dataset = pickle.load(file)
 
 print('# Split to train, validation, test subset')
-train_subset, val_subset, test_subset = split(custom_dataset, 0.9, 0.1, 0.0)
+train_subset, val_subset, test_subset = split(dataset, 0.9, 0.1, 0.0)
 # Turn train, val and test custom Dataset into DataLoader's
-train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
+train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8) #creates 8 worker processes to load the data in parallel. 
 val_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
 test_loader = DataLoader(test_subset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
 
@@ -83,7 +81,7 @@ print("Number of batches:", len(test_loader))
 #######################################################################
 ######################### CREATE LOG DIRECTORY ########################
 # Tensorboard set up
-log_dir = "/home/tappay01/test/runs/"+datetime.now().strftime("%m%d%H%M")+"/"
+log_dir = "/home/tappay01/test/runs/"+datetime.now().strftime("%d%m%H%M")+"/"
 writer_loss = SummaryWriter(os.path.join(log_dir, 'loss'))
 #writer_passing_rate = SummaryWriter(os.path.join(log_dir, 'passing rate'))
 writer_real = SummaryWriter(os.path.join(log_dir, 'real'))
@@ -123,9 +121,9 @@ results = {"epoch_loss_gen": [],
 print("[INFO] training the network...")
 startTime = time.time()
 for e in tqdm(range(NUM_EPOCHS)): 
-    report_gpu()
+    #report_gpu()
     #epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate, step_real, step_fake   
-    epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate = train_step(gen, critic,train_loader,opt_gen,opt_critic,LAMBDA_GP,density, device) 
+    epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate = train_step(gen, critic,train_loader,opt_gen,opt_critic,LAMBDA_GP, device) 
                                                         #writer_real,
                                                         #writer_fake, 
                                                         #step_real,
@@ -133,7 +131,7 @@ for e in tqdm(range(NUM_EPOCHS)):
                                                         
     
     print('End of training step. Start validation step')
-    val_passing_rate = val_step(gen, critic, val_loader, density, device)
+    val_passing_rate = val_step(gen, critic, val_loader, device)
 
 
     # Update results dictionary

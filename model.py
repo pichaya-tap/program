@@ -27,10 +27,10 @@ class Critic3d(nn.Module):
             nn.BatchNorm3d(256),
             nn.LeakyReLU(0.2, inplace=True),
 
-            nn.Conv3d(256, 1, kernel_size=3, stride =2, padding =0, bias=False),
+            nn.Conv3d(256, 1, kernel_size=1, stride =2, padding =0, bias=False),
             nn.Flatten(),
             nn.Dropout3d(p=0.15),
-            nn.Linear(147,1) #1575 when original shape
+            nn.Linear(8,1) #1575 when original shape
             
         )
 
@@ -155,7 +155,7 @@ class Generator(nn.Module):
         """ Classifier """
         self.outputs = nn.Sequential(
                             nn.Conv3d(16, 1, kernel_size=1, padding=0), #??? ConvTranspose3d or nn.Conv3d
-                            nn.Sigmoid(), # or Tanh()?
+                            nn.Sigmoid(), #range[0,1]
         )
 
     def forward(self, x):
@@ -191,9 +191,9 @@ def gradient_penalty(critic, real, fake, cond, device):
     
     Args:
         critic: A PyTorch critic model to be trained.
-        real: A batch of train dataset in the shape of [BATCHSIZE*1*256*256*128]
-        fake: A batch of output from generator in the shape of [BATCHSIZE*1*256*256*128]
-        cond: Respective conditional input of the data batch [BATCHSIZE*2*256*256*128]
+        real: A batch of train dataset 
+        fake: A batch of output from generator 
+        cond: Respective conditional input of the data batch 
         device: A target device to compute on (e.g. "cuda" or "cpu")
     
     Returns:
@@ -233,7 +233,7 @@ initialize_weights(gen)
 critic = Critic3d().to(device)
 initialize_weights(critic)
 
-noise = torch.randn((1,100,16,16,8)).to(device) #Will be fed to generator's bottle neck
-summary(gen, input_size=[(1,2, 128, 128, 64)]) # do a test pass through of an example input size 
-summary(critic, input_size=[(8,1, 128, 128, 64),(8,2,128,128,64)])
+noise = torch.randn((32,100,2,2,16)).to(device) #Will be fed to generator's bottle neck
+summary(gen, input_size=[(32,2,16,16,128)]) # do a test pass through of an example input size 
+summary(critic, input_size=[(32,1,16,16,128),(32,2,16,16,128)])
 '''
