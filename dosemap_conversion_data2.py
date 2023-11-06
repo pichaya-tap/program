@@ -1,7 +1,7 @@
 '''
 The code converts linear indices into corresponding three-dimensional coordinates
 within a voxel grid system.
-Dosemap shape matches density shape (z,y,x)	 for Dataset (126, 256, 256)
+Dosemap shape matches density shape (z,y,x)	 for Dataset2 (159, 256, 256)
 Beam axis is in last dimension
 
 
@@ -18,17 +18,17 @@ import time
 # Shape of voxel
 VOXELNUMBER_X = 256
 VOXELNUMBER_Y = 256
-VOXELNUMBER_Z = 126
+VOXELNUMBER_Z = 159
 
 # Location of the data
-directory_path =  '/gpfs001/scratch/schwar14/simudosemapheavyions/DosemapInBrain/build_folders/Miriam/'
+directory_path =  '/gpfs001/scratch/schwar14/simudosemapheavyions/DosemapInBrain/build_folders/Ali/'
 print('conversion files from ',directory_path)
 # Save path
-save_path = '/scratch/tappay01/data/data1'
+save_path = '/scratch/tappay01/data/data2'
 
 # Iterate through files in the folder
 for filename in os.listdir(directory_path):
-    if filename.endswith('.out') and filename.startswith('Data1'):
+    if filename.endswith('.out') and filename.startswith('Data2'):
         # Start the timer
         start_time = time.time()
         # Construct the input and output file paths
@@ -39,7 +39,7 @@ for filename in os.listdir(directory_path):
 
         # Output file name to change the extension to .npy
         output_filename = os.path.join(save_path, file_name_without_extension + '.npy')
-        print('output file name ',file_name_without_extension)
+
         if not os.path.exists(output_filename):
             # if it doesn't exist already
             print('calculating ',file_name_without_extension)

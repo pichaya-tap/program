@@ -50,6 +50,14 @@ print("BATCH_SIZE" ,BATCH_SIZE)
 print('loading data as batch')
 
 data_folder = "/scratch/tappay01/data/data1" #Dataset1
+'''data_folders = [
+    "/scratch/tappay01/data/data1", 
+    "/scratch/tappay01/data/data2_resampled",
+    "/scratch/tappay01/data/data3_resampled",
+    "/scratch/tappay01/data/data4_resampled",
+    "/scratch/tappay01/data/data5_resampled"
+]
+'''
 density_folder = "/scratch/tappay01/densities"
 water_folder = "/scratch/tappay01/watersimulation/DATASET"
 

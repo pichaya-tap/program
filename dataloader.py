@@ -88,7 +88,7 @@ class CustomDataset(Dataset):
                 print(f"Water simulation file not found for {energy}")
                 watersim_path = find_corresponding_file_in_folder('2750MeV', water_folder) #as default
             watersim = np.load(watersim_path)/10 #ratio of primary particles or histories (Water simulation n=10^8 and Phantom simulation n=10^7)
-            water_sample= extract_centered_subsample(watersim, 80, 141, [60,188])
+            water_sample= extract_centered_subsample(watersim, 80, 141, x_range)
             self.water_samples.append(water_sample)
             
         # Thresholding
@@ -98,39 +98,20 @@ class CustomDataset(Dataset):
         self.water_samples = [np.where(np.abs(sample) < dose_threshold, 0, sample) for sample in self.water_samples]
         self.density_samples = [np.where(sample > density_threshold, density_threshold, sample) 
                         for sample in self.density_samples]
-        # Normalize the data_samples
+        
+        # Normalize 
         all_data = np.array(self.data_samples)
-        if normalization == 'zscore':
-            mean = np.mean(all_data)
-            std = np.std(all_data)
-            self.data_samples = [(sample - mean) / std for sample in self.data_samples]
-            
-        elif normalization == 'minmax':
+        all_density = np.array(self.density_samples)
+        all_water = np.array(self.water_samples)
+        if normalization == 'minmax':
             data_min = np.min(all_data)
             data_range = np.max(all_data) - data_min
             self.data_samples = [(sample - data_min) / data_range for sample in self.data_samples]
-
-        # Similarly, normalize the density_samples 
-        all_density = np.array(self.density_samples)
-        if normalization == 'zscore':
-            mean = np.mean(all_density)
-            std = np.std(all_density)
-            self.density_samples = [(sample - mean) / std for sample in self.density_samples]
-       
-        elif normalization == 'minmax':
+  
             density_min = np.min(all_density)
             density_range = np.max(all_density) - density_min
             self.density_samples = [(sample - density_min) / density_range for sample in self.density_samples]
-  
-
-        # Similarly, normalize the water_samples 
-        all_water = np.array(self.water_samples)
-        if normalization == 'zscore':
-            mean = np.mean(all_water)
-            std = np.std(all_water)
-            self.water_samples = [(sample - mean) / std for sample in self.water_samples]
-
-        elif normalization == 'minmax':
+            
             water_min = np.min(all_water)
             water_range = np.max(all_water) - water_min
             self.water_samples = [(sample - water_min) / water_range for sample in self.water_samples]
@@ -147,7 +128,6 @@ class CustomDataset(Dataset):
         condition = torch.cat([water_tensor, density_tensor], dim=0)
         
         return data_tensor,condition, water_tensor, density_tensor, data_name
-
 
 
 
@@ -184,9 +164,6 @@ def resize(data,target_size):
     padded_data = np.pad(data, padding, mode='constant')
 
     return padded_data
-
-
-
 
 
 def split(custom_dataset,
