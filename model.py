@@ -30,7 +30,7 @@ class Critic3d(nn.Module):
             nn.Conv3d(256, 1, kernel_size=1, stride =2, padding =0, bias=False),
             nn.Flatten(),
             nn.Dropout3d(p=0.15),
-            nn.Linear(8,1) #1575 when original shape
+            nn.Linear(8,1)
             
         )
 
@@ -82,10 +82,8 @@ class Encoder(nn.Module):
 			# pass the inputs through the current encoder block, store
 			# the outputs, and then apply maxpooling on the output
             x = block(x)
-            #print("encoder block",x.shape)
             block_outputs.append(x)
             x = self.pool(x)
-            #print("pooling",x.shape)
 		# return the list containing the intermediate outputs
         return x, block_outputs
 
@@ -105,7 +103,6 @@ class Decoder(nn.Module):
         for i in range(len(self.channels) - 1):
 			# pass the inputs through the upsampler blocks
             x = self.up[i](x)
-            #print("upsampling",x.shape)
 			# crop the current features from the encoder blocks,
             encFeat = self.crop(encFeatures[i], x)
 			# concatenate them with the current upsampled features,
@@ -120,8 +117,7 @@ class Decoder(nn.Module):
         # to match the spatial dimensions of x (H, W).
         (_, _, D, H, W) = x.shape
 
-        # Assuming you want to crop the center region, you can calculate the starting
-        # indices for cropping as follows:
+        # crop the center region, calculate the starting indices for cropping as follows:
         start_d = (encFeatures.shape[2] - D) // 2
         start_h = (encFeatures.shape[3] - H) // 2
         start_w = (encFeatures.shape[4] - W) // 2
@@ -140,7 +136,7 @@ class Generator(nn.Module):
     Penalty term from https://arxiv.org/abs/2202.07077
 
     Returns:
-        A batch of 3D matrix of energy depositions of size [BATCHSIZE*1*256*256*128]
+        A batch of 3D matrix of energy depositions of size [BATCHSIZE*1*16*16*128]
     """
     def __init__(self, encChannels=(2, 16, 32, 64)):
         decChannels=(128,64, 32, 16)
@@ -154,16 +150,12 @@ class Generator(nn.Module):
 
         """ Classifier """
         self.outputs = nn.Sequential(
-                            nn.Conv3d(16, 1, kernel_size=1, padding=0), #??? ConvTranspose3d or nn.Conv3d
-                            nn.Sigmoid(), #range[0,1]
+                            nn.Conv3d(16, 1, kernel_size=1, padding=0), 
+                            nn.Sigmoid(), #output range[0,1]
         )
 
     def forward(self, x):
-		# grab the features from the encoder
         b, encFeatures = self.encoder(x)
-        #print("last encFeatures {}".format(encFeatures[::-1][0].shape))
-        #print("bottleneck {}".format(b.shape))
-
         # Concatenate input tensor and noise tensor along the channel dimension (dim=1)
         add_noise = torch.cat([b, 
                                torch.randn((x.shape[0], 100, b.shape[2], b.shape[3], b.shape[4]), 

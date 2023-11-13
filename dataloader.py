@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import Dataset
 from pathlib import Path
 from typing import Tuple
-import random
+
 from torch.utils.data import Subset
 import glob
 
@@ -35,7 +35,7 @@ def extract_from_filename(filename, param):
     """Extracts energy value from the given filename."""
     parts = filename.split('_')
     if param == 'y':
-        return float(parts[2][:-2])
+        return int(parts[2][:-2])
     if param == 'z':
         return float(parts[3][:-6])
     if param == 'energy':
@@ -43,9 +43,14 @@ def extract_from_filename(filename, param):
     else:
         return None
 
-def find_corresponding_file_in_folder(energy, folder):
-    """Returns the path of the corresponding file based on the energy value."""
+def find_watersim_in_folder(energy, folder):
+    """Returns the path of the corresponding water simulation file based on the energy value."""
     target_filename = f"DATASET_{energy}.npy"
+    return os.path.join(folder, target_filename)
+
+def find_density_in_folder(dataset,y,z, folder):
+    """Returns the path of the corresponding density file based on the dataset and source position value."""
+    target_filename = f"{dataset}_{y}Mm_{z}Mm.npy"
     return os.path.join(folder, target_filename)
 
 
@@ -63,34 +68,45 @@ class CustomDataset(Dataset):
         self.water_samples = []
 
         data_files = glob.glob(os.path.join(data_folder, "*.npy"))           
-
+        print(data_folder)
         # Extract samples first without normalization
         for data_file in data_files:
             data = np.load(data_file)
+
+            # Check if the data array is empty or has any zero dimension
+            if data.size == 0 or 0 in data.shape:
+                print(f"Invalid data file (empty or zero dimension): {data_file}")
+                continue  # Skip the rest of the loop and go to the next file
+
+            # Check if all values in the array are zero
+            if np.all(data == 0):
+                print(f"All values are zero in file: {data_file}")
+                continue  # Skip the rest of the loop and go to the next file
+
+            # Water simulation
             filename = os.path.basename(data_file) # Example "Data1_1500MeV_0Mm_-121.5Mm.npy"
-            y = extract_from_filename(filename, 'y')
-            z = extract_from_filename(filename, 'z')  # Example y=0 and z=-121.5
-            y_voxel = to_voxel(y,1)
-            z_voxel = to_voxel(z,0)
-            sample = extract_centered_subsample(data, z_voxel, y_voxel, x_range)
-            self.data_samples.append(sample)  
-            self.data_names.append(filename)
-
-            density_file = filename.split('_')[0]+'.npy' # Example Data1, Data2
-            density = np.load(os.path.join(density_folder, density_file))
-            density_sample = extract_centered_subsample(density, z_voxel, y_voxel, x_range)
-            self.density_samples.append(density_sample)
-
-
             energy = extract_from_filename(filename, 'energy')
-            watersim_path = find_corresponding_file_in_folder(energy, water_folder)
+            watersim_path = find_watersim_in_folder(energy, water_folder)
             if not os.path.exists(watersim_path):                
                 print(f"Water simulation file not found for {energy}")
-                watersim_path = find_corresponding_file_in_folder('2750MeV', water_folder) #as default
-            watersim = np.load(watersim_path)/10 #ratio of primary particles or histories (Water simulation n=10^8 and Phantom simulation n=10^7)
-            water_sample= extract_centered_subsample(watersim, 80, 141, x_range)
-            self.water_samples.append(water_sample)
+                #watersim_path = find_watersim_in_folder('3000MeV', water_folder) #as default
+                continue
+            watersim = np.load(watersim_path) #ratio of primary particles or histories (Water simulation n=10^8 and Phantom simulation n=10^7)
+            water_sample= extract_centered_subsample(watersim, 80, 141, x_range) # watersim shape zyx 160*283*283
+
+            # Densities
+            dataset = filename.split('_')[0] # Example Data1, Data2
+            y = extract_from_filename(filename, 'y')
+            z = extract_from_filename(filename, 'z')  # Example y=0 and z=-121.5
+            density = find_density_in_folder(dataset,y,z, density_folder)
+            density_sample = np.load(density)
             
+            self.data_samples.append(data)
+            self.water_samples.append(water_sample)  
+            self.density_samples.append(density_sample)
+            self.data_names.append(filename)
+
+           
         # Thresholding
         dose_threshold= 0.1# Set a threshold for values consider close to 0
         density_threshold = 1.5 # Set a threshold to limit outliers
@@ -101,10 +117,11 @@ class CustomDataset(Dataset):
         
         # Normalize 
         all_data = np.array(self.data_samples)
+        print(all_data.shape)
         all_density = np.array(self.density_samples)
         all_water = np.array(self.water_samples)
         if normalization == 'minmax':
-            data_min = np.min(all_data)
+            data_min = 0
             data_range = np.max(all_data) - data_min
             self.data_samples = [(sample - data_min) / data_range for sample in self.data_samples]
   
@@ -112,7 +129,7 @@ class CustomDataset(Dataset):
             density_range = np.max(all_density) - density_min
             self.density_samples = [(sample - density_min) / density_range for sample in self.density_samples]
             
-            water_min = np.min(all_water)
+            water_min = 0
             water_range = np.max(all_water) - water_min
             self.water_samples = [(sample - water_min) / water_range for sample in self.water_samples]
 
@@ -127,72 +144,8 @@ class CustomDataset(Dataset):
         # Concatenate along the channel dimension
         condition = torch.cat([water_tensor, density_tensor], dim=0)
         
-        return data_tensor,condition, water_tensor, density_tensor, data_name
+        return data_tensor, condition, water_tensor, density_tensor, data_name
 
 
 
-def resize(data,target_size):
-    """Resize with either padding or truncating
-    Compare current data shape with target size then perform resize.
-    
-    Args:
-        data: A 3D numpy array data of any shape.
-    Returns:
-         A 3D numpy array data with shape of target size.
-    """
-
-    current_size = data.shape
-
-    if current_size == target_size:
-        return data  # No need to resize
-
-    if current_size[0] >= target_size[0] and \
-       current_size[1] >= target_size[1] and \
-       current_size[2] >= target_size[2]:
-        # Truncate the data
-        start_idx = (current_size[0] - target_size[0]) // 2
-        end_idx = start_idx + target_size[0]
-        start_idx_1 = (current_size[1] - target_size[1]) // 2
-        end_idx_1 = start_idx_1 + target_size[1]
-        start_idx_2 = (current_size[2] - target_size[2]) // 2
-        end_idx_2 = start_idx_2 + target_size[2]
-        truncated_data = data[start_idx:end_idx, start_idx_1:end_idx_1, start_idx_2:end_idx_2]
-        return truncated_data
-
-    # Padding the data
-    padding = [(0, max(target_size[i] - current_size[i], 0)) for i in range(3)]
-    padded_data = np.pad(data, padding, mode='constant')
-
-    return padded_data
-
-
-def split(custom_dataset,
-          train_ratio: float = 0.6, 
-          val_ratio: float = 0.2,
-          test_ratio: float = 0.2):
-    """Split custom data into training, validation, testing subset"""
-
-    #CustomDataset object named 'custom_dataset'
-    data_size = len(custom_dataset)
-    indices = list(range(data_size))
-    random.shuffle(indices)
-
-    # Calculate the sizes for each split
-    train_size = int(data_size * train_ratio)
-    val_size = int(data_size * val_ratio)
-
-    # Split indices
-    train_indices = indices[:train_size]
-    val_indices = indices[train_size : train_size + val_size]
-    test_indices = indices[train_size + val_size:]
-
-    # Create Subset objects for each split
-    train_subset = Subset(custom_dataset, train_indices)
-    val_subset = Subset(custom_dataset, val_indices)
-    test_subset = Subset(custom_dataset, test_indices)
-
-    return(train_subset, val_subset, test_subset)
-
-    
-        
 

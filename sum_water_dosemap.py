@@ -46,19 +46,28 @@ def main(argv):
         if os.path.exists(output_path):
             print(f"Warning: File '{output_path}' already exists. Skipping calculation.")
             continue  
-
+        count =0
         for i in range(25): 
             filename = '{}_t{}_{}_{}.npy'.format(ENERGY,i,positiony,positionz)
             file_path = os.path.join(save_path, filename)
-            # Add current dosemap to the overall dosemap
-            dosemap_sum += np.load(file_path)
-            # Save the overall dose map   
+            #TO DO...if file exist # Add current dosemap to the overall dosemap
+            if os.path.exists(file_path):
+                dosemap_sum += np.load(file_path)
+                count +=1
+            else:
+                print('warning: file missing at t{}'.format(i))
+                continue
+        
+        # Save the overall dose map 
              
-        np.save(output_path, dosemap_sum)
-        print('{} file saved successfully'.format(filename_sum))
-        end_time = time.time()  # Record the end time
-        elapsed_time = end_time - start_time  # Calculate the elapsed time in seconds
-        print(f"Time taken for sum up files: {elapsed_time} seconds")
+        if count == 25:
+            np.save(output_path, dosemap_sum)
+            print('{} file saved successfully'.format(filename_sum))
+            end_time = time.time()  # Record the end time
+            elapsed_time = end_time - start_time  # Calculate the elapsed time in seconds
+            print(f"Time taken for sum up files: {elapsed_time} seconds")
+        else:
+            print('files are not complete')
 
 
 if __name__ == "__main__":

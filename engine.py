@@ -4,7 +4,7 @@ Contains functions for training and validating a model.
 import torch
 from model import gradient_penalty
 from typing import Tuple
-from utils import plot_delta, show_tensor_images
+from utils import plot_delta, plot_data, plot_slice
 import gc
 
 def report_gpu():
@@ -19,9 +19,10 @@ def cal_passing_rate(real,fake):
         A list of passing rate of individual samples in the batch 
     """
     delta = torch.abs((fake - real) / (real.max())) #δ = (Dgen − Dsim)/ Dmax sim
-    #number of voxel with delta < 1%
-    total_voxel = real.shape[2]*real.shape[3]*real.shape[4]
-    passing_voxels = torch.sum(delta < 0.05, dim=(1, 2, 3, 4)).tolist()  #TEST! number of voxel with delta < 5%
+    #number of voxel with delta < 3%
+    total_voxel = int(real.shape[2]*real.shape[3]*real.shape[4])
+    passing_voxels = torch.sum(delta < 0.03, dim=(2, 3, 4)).squeeze().tolist()  #TEST! number of voxel with delta < 3%
+    print(' Passing voxel ',passing_voxels, ' from ', total_voxel)
     batch_passing_rates = [round(passing_voxel * 100 / total_voxel ,2) for passing_voxel in passing_voxels] #percent passing rate
     return batch_passing_rates
 
@@ -31,7 +32,8 @@ def train_step(gen,
                opt_gen: torch.optim.Optimizer,
                opt_critic: torch.optim.Optimizer,
                LAMBDA_GP,
-               device: torch.device):
+               device: torch.device,
+               log_dir):
                #writer_real,
                #writer_fake, 
                #step_real,
@@ -71,7 +73,7 @@ def train_step(gen,
     CRITIC_ITERATIONS =5 # Update critics = CRITIC_ITERATIONS times before update the generator
 
     # Loop through data loader data batches
-    for batch_idx, (real,cond, water_tensor, density_tensor, data_name) in enumerate(train_loader): 
+    for batch_idx, (real, cond, water_tensor, density_tensor, data_name) in enumerate(train_loader): 
         print(f"Processing train batch {batch_idx}")
         cur_batch_size = real.shape[0]    
         # Send data to target device
@@ -155,9 +157,9 @@ def train_step(gen,
                 #print(f'add image to tensor board for step {step_real}')
                 #step_real = plot_dosemap(real, writer_real, step_real)# step to see the progression
                 #step_fake = plot_dosemap(fake_2, writer_fake, step_fake)
-                show_tensor_images(real.detach().cpu(),'/home/tappay01/test/runs/images_real',data_name)
-                show_tensor_images(fake_2.detach().cpu(),'/home/tappay01/test/runs/images_fake',data_name)
-                plot_delta(real.detach().cpu(), fake_2.detach().cpu(), '/home/tappay01/test/runs/delta',data_name)
+                plot_data(real.detach().cpu(), fake_2.detach().cpu(), data_name, log_dir)
+                plot_slice(real.detach().cpu(), fake_2.detach().cpu(),density_tensor.detach().cpu() ,data_name, log_dir)
+
         del fake_2
         del real
     # Calculate loss per epoch

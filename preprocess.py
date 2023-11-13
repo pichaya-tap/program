@@ -69,7 +69,7 @@ def resample_image(input_image, new_spacing, new_origin):
     resampler.SetOutputSpacing(new_spacing)
     resampler.SetOutputOrigin(new_origin)
     resampler.SetOutputDirection(input_image.GetDirection())
-    resampler.SetInterpolator(sitk.sitkLinear)
+    resampler.SetInterpolator(sitk.sitkNearestNeighbor) # preserve the original data values without smoothing
     
     resampled_image = resampler.Execute(input_image)
     return resampled_image
@@ -96,11 +96,11 @@ def extract_roi_array(image, roi_size, center_physical):
     return sitk.GetArrayFromImage(roi) 
 
 
-dataset = 'Data1'
+dataset = '7'
 
-data_folder = '/scratch/tappay01/data/{}'.format(dataset)
+data_folder = '/scratch/tappay01/data/data{}'.format(dataset)
 data_files = glob.glob(os.path.join(data_folder, "*.npy"))  
-save_folder = '/scratch/tappay01/data/{}_resampled'.format(dataset)
+save_folder = '/scratch/tappay01/data/data{}_resampled'.format(dataset)
 # target = data1
 target_spacing = datasets["Data1"]["voxel_dim"]
 target_origin = datasets["Data1"]["origin"]
@@ -121,12 +121,12 @@ for file_path in data_files:
     # Load data from .npy
     array = np.load(file_path)
     # Convert numpy array to SimpleITK image and set parameters
-    image = set_sitk_image(array, dataset)
+    image = set_sitk_image(array, 'Data'+dataset)
 
-    if dataset != 'Data1':
+    if dataset != '1':
         # Resample the image
         resampled = resample_image(image, target_spacing, target_origin)
-    if dataset == 'Data1':
+    if dataset == '1':
         resampled = image
     # Extract ROI    
     # y z source position extract from file name

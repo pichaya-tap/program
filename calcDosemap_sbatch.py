@@ -44,7 +44,7 @@ def main(argv):
     ##########################################################################################
 
     # Set the directory path where the files are located
-    directory_path = '/gpfs001/scratch/schwar14/simudosemapheavyions/Watersimulation/Hadr01/Dataset_Miriam/{}'.format(ENERGY)
+    directory_path = '/scratch/tappay01/watersimulation/Data1/{}'.format(ENERGY)
 
     save_path = '/scratch/tappay01/watersimulation/{}'.format(DATASET)
     # Get a list of files matching the pattern "output_nt_Hits_t*.csv"
@@ -98,11 +98,11 @@ def main(argv):
         np.save(file_path, dosemap)
         print('{} file added successfully'.format(filename))   
         # Add current dosemap to the overall dosemap
-        #dosemap_sum += dosemap
+        dosemap_sum += dosemap
     
     # Save the overall dose map        
-    #np.save(output_path, dosemap_sum)
-    #print('{} file saved successfully'.format(filename_sum))   
+    np.save(output_path, dosemap_sum)
+    print('{} file saved successfully'.format(filename_sum))   
 
 
 if __name__ == "__main__":

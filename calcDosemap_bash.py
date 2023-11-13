@@ -19,7 +19,7 @@ def main(argv):
 
     #####################################Refer to "'notes_dicom_images.txt"########################################################
     DATASET = 'DATASET'
-    POSITIONY = [-50, -25, 0.1, 25, 50, 75]  
+    POSITIONY = [ 0.1, 25, 50, 75]  #-50, -25
     POSITIONZ = [-146.5, -121.5, -96.5, -71.5, -46.5] 
     POSITION = itertools.product(POSITIONY, POSITIONZ)
 
@@ -46,7 +46,8 @@ def main(argv):
     ##########################################################################################
     
     # Set the directory path where the files are located
-    directory_path = '/gpfs001/scratch/schwar14/simudosemapheavyions/Watersimulation/Hadr01/Dataset_Miriam/{}'.format(ENERGY)
+    directory_path = '/home/tappay01/data/water/{}'.format(ENERGY)
+    #'/gpfs001/scratch/schwar14/simudosemapheavyions/Watersimulation/Hadr01/Dataset_Miriam/{}'.format(ENERGY)
     save_path = '/scratch/tappay01/watersimulation/{}'.format(DATASET)
     # Get a list of files matching the pattern "output_nt_Hits_t*.csv"
     file_pattern = os.path.join(directory_path, "output_nt_Hits_t*.csv")

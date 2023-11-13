@@ -15,10 +15,11 @@ from tqdm import tqdm
 import pickle
 import gc
 
-from dataloader import CustomDataset, split
+from dataloader import CustomDataset
 from model import Critic3d, Generator, initialize_weights
 from engine import train_step, val_step
 from utils import update
+from torch.utils.data import ConcatDataset, random_split
 ######################################################################
 torch.autograd.set_detect_anomaly(True)
 
@@ -38,7 +39,7 @@ def report_gpu():
 ######################### HYPERPARAMETER ##############################
 LEARNING_RATE = 1e-5 # could also use 2 lrs
 Z_DIM =100
-NUM_EPOCHS = 200
+NUM_EPOCHS = 5
 # CRITIC_ITERATIONS =5 #Parameter to update critic many times before update generator once.Change im engine
 # WEIGHT_CLIP = 0.01 #If use weight clipping. We use Wasserstein distance instead.
 LAMBDA_GP = 10 #Lambda for gradient penalty 
@@ -49,33 +50,41 @@ print("BATCH_SIZE" ,BATCH_SIZE)
 ########################## DATA LOADING ###############################
 print('loading data as batch')
 
-data_folder = "/scratch/tappay01/data/data1" #Dataset1
-'''data_folders = [
-    "/scratch/tappay01/data/data1", 
+data_folders = [
+    "/scratch/tappay01/data/data1_resampled", 
     "/scratch/tappay01/data/data2_resampled",
-    "/scratch/tappay01/data/data3_resampled",
     "/scratch/tappay01/data/data4_resampled",
-    "/scratch/tappay01/data/data5_resampled"
+    "/scratch/tappay01/data/data5_resampled",
+    "/scratch/tappay01/data/data7_resampled"
 ]
-'''
+
 density_folder = "/scratch/tappay01/densities"
 water_folder = "/scratch/tappay01/watersimulation/DATASET"
 
-dataset = CustomDataset(data_folder, density_folder, water_folder)
-print(len(dataset))
-#Save the custom dataset to a file
-saved_dataset = '/scratch/tappay01/custom_dataset.pkl'
-#with open(saved_dataset, 'wb') as file:
-#    pickle.dump(dataset, file)
+# dataset = CustomDataset(data_folder, density_folder, water_folder)
+# Initialize datasets separately
 
+# Create datasets for each folder and combine them into a single dataset
+# combined_dataset = ConcatDataset([CustomDataset(folder, density_folder, water_folder) for folder in data_folders])
+
+#Save the custom dataset to a file
+saved_dataset = '/scratch/tappay01/custom_dataset2.pkl'
+#with open(saved_dataset, 'wb') as file:
+#    pickle.dump(combined_dataset, file)
 #Later, when you want to use the dataset again, you can load it from the file
 with open(saved_dataset, 'rb') as file:
-   dataset = pickle.load(file)
+   combined_dataset = pickle.load(file)
 
-print('# Split to train, validation, test subset')
-train_subset, val_subset, test_subset = split(dataset, 0.9, 0.1, 0.0)
+print('Total data :',len(combined_dataset))
+# Split combined dataset into train, validation, and test
+train_size = int(0.7 * len(combined_dataset))
+valid_size = int(0.15 * len(combined_dataset))
+test_size = len(combined_dataset) - (train_size + valid_size)
+
+train_subset, val_subset, test_subset = random_split(combined_dataset, [train_size, valid_size, test_size])
+
 # Turn train, val and test custom Dataset into DataLoader's
-train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8) #creates 8 worker processes to load the data in parallel. 
+train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8) #creates 8 worker processes to load the data in parallel. 
 val_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
 test_loader = DataLoader(test_subset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
 
@@ -90,15 +99,21 @@ print("Number of batches:", len(test_loader))
 ######################### CREATE LOG DIRECTORY ########################
 # Tensorboard set up
 log_dir = "/home/tappay01/test/runs/"+datetime.now().strftime("%d%m%H%M")+"/"
-writer_loss = SummaryWriter(os.path.join(log_dir, 'loss'))
+#writer_loss = SummaryWriter(os.path.join(log_dir, 'loss'))
 #writer_passing_rate = SummaryWriter(os.path.join(log_dir, 'passing rate'))
-writer_real = SummaryWriter(os.path.join(log_dir, 'real'))
+#writer_real = SummaryWriter(os.path.join(log_dir, 'real'))
 #step_real = 0 
 #step_fake = 0 
 # Create target directory
 target_dir_path = Path(log_dir)
 target_dir_path.mkdir(parents=True,exist_ok=True)
+# Create the 'fake' directory
+fake_dir_path = target_dir_path / 'fake'
+fake_dir_path.mkdir(parents=True, exist_ok=True)
 
+# Create the "real" directory under log_dir
+real_dir_path = Path(log_dir) / 'real'
+real_dir_path.mkdir(parents=True, exist_ok=True)
 
 #######################################################################
 ########################### INITIALIZE MODELS ##########################
@@ -131,11 +146,8 @@ startTime = time.time()
 for e in tqdm(range(NUM_EPOCHS)): 
     #report_gpu()
     #epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate, step_real, step_fake   
-    epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate = train_step(gen, critic,train_loader,opt_gen,opt_critic,LAMBDA_GP, device) 
-                                                        #writer_real,
-                                                        #writer_fake, 
-                                                        #step_real,
-                                                        #step_fake 
+    epoch_loss_gen,epoch_loss_critic,epoch_passing_rate = train_step(gen, critic,train_loader,opt_gen,opt_critic,LAMBDA_GP, device,log_dir) 
+                                                        #writer_real, writer_fake, step_real,step_fake 
                                                         
     
     print('End of training step. Start validation step')
