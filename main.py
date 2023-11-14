@@ -16,7 +16,7 @@ import pickle
 import gc
 
 from dataloader import CustomDataset
-from model import Critic3d, Generator, initialize_weights
+from model2 import Critic3d, Generator, initialize_weights
 from engine import train_step, val_step
 from utils import update
 from torch.utils.data import ConcatDataset, random_split
@@ -37,14 +37,13 @@ def report_gpu():
    print(f"{torch.cuda.memory_allocated()/(1024)} Kb")
 
 ######################### HYPERPARAMETER ##############################
-LEARNING_RATE = 1e-5 # could also use 2 lrs
+LEARNING_RATE_G = 0.001 
+LEARNING_RATE_C = 0.00002 
 Z_DIM =100
-NUM_EPOCHS = 5
+NUM_EPOCHS = 200
 # CRITIC_ITERATIONS =5 #Parameter to update critic many times before update generator once.Change im engine
-# WEIGHT_CLIP = 0.01 #If use weight clipping. We use Wasserstein distance instead.
 LAMBDA_GP = 10 #Lambda for gradient penalty 
 BATCH_SIZE = 32 #To be 32 according to paper
-print("BATCH_SIZE" ,BATCH_SIZE)
 
 #######################################################################
 ########################## DATA LOADING ###############################
@@ -78,7 +77,7 @@ with open(saved_dataset, 'rb') as file:
 print('Total data :',len(combined_dataset))
 # Split combined dataset into train, validation, and test
 train_size = int(0.7 * len(combined_dataset))
-valid_size = int(0.15 * len(combined_dataset))
+valid_size = int(0.3 * len(combined_dataset))
 test_size = len(combined_dataset) - (train_size + valid_size)
 
 train_subset, val_subset, test_subset = random_split(combined_dataset, [train_size, valid_size, test_size])
@@ -99,11 +98,8 @@ print("Number of batches:", len(test_loader))
 ######################### CREATE LOG DIRECTORY ########################
 # Tensorboard set up
 log_dir = "/home/tappay01/test/runs/"+datetime.now().strftime("%d%m%H%M")+"/"
-#writer_loss = SummaryWriter(os.path.join(log_dir, 'loss'))
-#writer_passing_rate = SummaryWriter(os.path.join(log_dir, 'passing rate'))
-#writer_real = SummaryWriter(os.path.join(log_dir, 'real'))
-#step_real = 0 
-#step_fake = 0 
+
+
 # Create target directory
 target_dir_path = Path(log_dir)
 target_dir_path.mkdir(parents=True,exist_ok=True)
@@ -130,9 +126,8 @@ for param in critic.parameters():
 #######################################################################
 ################################ TRAIN MODELS ##########################
 #Set up optimizers for generator and critic
-opt_gen = optim.Adam(gen.parameters(), lr=LEARNING_RATE, betas=(0.0, 0.9)) 
-opt_critic = optim.Adam(critic.parameters(), lr=LEARNING_RATE, betas=(0.0, 0.9))
-
+opt_gen = optim.Adam(gen.parameters(), lr=LEARNING_RATE_G, betas=(0.0, 0.9)) 
+opt_critic = optim.Adam(critic.parameters(), lr=LEARNING_RATE_C, betas=(0.0, 0.9))
 
 # Create empty results dictionary
 results = {"epoch_loss_gen": [],
@@ -147,29 +142,20 @@ for e in tqdm(range(NUM_EPOCHS)):
     #report_gpu()
     #epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate, step_real, step_fake   
     epoch_loss_gen,epoch_loss_critic,epoch_passing_rate = train_step(gen, critic,train_loader,opt_gen,opt_critic,LAMBDA_GP, device,log_dir) 
-                                                        #writer_real, writer_fake, step_real,step_fake 
-                                                        
+                                                      
+                                                    
     
-    print('End of training step. Start validation step')
+    #print('End of training step. Start validation step')
     val_passing_rate = val_step(gen, critic, val_loader, device)
-
 
     # Update results dictionary
     results = update(results, epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate, val_passing_rate)
 
-    # Add results to SummaryWriter
-    #writer_loss.add_scalars(main_tag="Loss",
-                          #tag_scalar_dict={"gen_loss": epoch_loss_gen,
-                           #                 "critic_loss": epoch_loss_critic},
-                          #global_step=e)
-    #writer_passing_rate.add_scalars(main_tag="Passing rate",
-                          #tag_scalar_dict={"passing_rate_1": val_passing_rate},
-                          #global_step=e)
     
     # print the model training and validation information
     print("[INFO] EPOCH: {}/{}".format(e + 1, NUM_EPOCHS))
-    print("Train loss generator: {:.6f}, Train loss critic: {:.4f}, Train passing rate: {:.4f}, Val passing rate: {:.4f}".format(
-		epoch_loss_gen, epoch_loss_critic, epoch_passing_rate, val_passing_rate))
+    print("Train loss generator: {:.6f}, Train loss critic: {:.4f}, Train passing rate: {:.4f}".format(
+		epoch_loss_gen, epoch_loss_critic, epoch_passing_rate))
 
     # Save Model when new high validation passing rate is found
     if all(val_passing_rate > rate for rate in results["val_passing_rate"]):
@@ -177,16 +163,12 @@ for e in tqdm(range(NUM_EPOCHS)):
         model_name = f"model_epoch{e}.pth"
         # Save the model state_dict()
         torch.save(obj=gen.state_dict(),f=target_dir_path/model_name) 
-
+    
 model_name = f"model_epoch{e}.pth"
 # Save the model state_dict()
 torch.save(obj=gen.state_dict(),f=target_dir_path/model_name) 
 
-# Close all the writers
-#writer_real.close()
-#writer_fake.close()
-#writer_loss.close() 
-#writer_passing_rate.close()
+
 
 # display the total time needed to perform the training
 endTime = time.time()

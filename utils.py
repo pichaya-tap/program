@@ -17,7 +17,6 @@ def update(results:dict, epoch_loss_gen, epoch_loss_critic, epoch_passing_rate, 
         epoch_loss_gen: train generator loss
         epoch_loss_critic: train critic loss
         epoch_passing_rate: 1% passing rate on train dataset
-        val_passing_rate: 1% passing rate on validation dataset
 
     Returns:
         A dictionary of loss and passing rate metrics.
@@ -28,7 +27,6 @@ def update(results:dict, epoch_loss_gen, epoch_loss_critic, epoch_passing_rate, 
     results["epoch_loss_critic"].append(epoch_loss_critic)
     results["epoch_passing_rate"].append(epoch_passing_rate)
     results["val_passing_rate"].append(val_passing_rate)
- 
     # Return the filled results at the end of the epochs
     return results
 

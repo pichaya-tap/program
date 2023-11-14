@@ -63,7 +63,7 @@ class Block(nn.Module):
     def forward(self, x):
         return self.dropout(self.silu(self.bn2(self.conv2(self.silu(self.bn1(self.conv1(x)))))))
     
-  
+       
 
 class Encoder(nn.Module):
     def __init__(self, channels=(2, 16, 32, 64)):

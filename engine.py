@@ -33,13 +33,8 @@ def train_step(gen,
                opt_critic: torch.optim.Optimizer,
                LAMBDA_GP,
                device: torch.device,
-               log_dir):
-               #writer_real,
-               #writer_fake, 
-               #step_real,
-               #step_fake               
-               
-    
+               log_dir):         
+                   
     """Trains a PyTorch model for a single epoch.
     Turns a model to training mode and then
     runs through all of the required training steps.
@@ -52,10 +47,6 @@ def train_step(gen,
         opt_critic: An optimizer to help minimize the loss function of discriminator.
         LAMBDA_GP : Lambda for gradient penalty
         device: A target device to compute on (e.g. "cuda" or "cpu")
-        writer_real: A tensorboard writer to save real data plots
-        writer_fake: A tensorboard writer to save fake data plots
-        step_real: Step to see the progression of real data plots
-        step_fake: Step to see the progression of fake data plots
 
     Returns:
         Training loss per epoch and passing rate 1%       
@@ -78,10 +69,8 @@ def train_step(gen,
         cur_batch_size = real.shape[0]    
         # Send data to target device
         # Use .float() because of RuntimeError: expected scalar type Double but found Float
-        real = real.to(device) 
-        print('real shape :', real.shape) 
-        cond = cond.to(device) 
-        print('cond shape :', cond.shape)         
+        real = real.to(device)  
+        cond = cond.to(device)        
 
                      
         ########## Train Critic: max E[critic(real)] - E[critic(fake)]###########
@@ -102,24 +91,18 @@ def train_step(gen,
             # Calculate  and accumulate loss
             loss_critic = -(torch.mean(critic_real)- torch.mean(critic_fake)) + LAMBDA_GP*gp
             
-            print("loss_critic :",-float(torch.mean(critic_real)- torch.mean(critic_fake)) ,"gradient penalty :",float(LAMBDA_GP*gp))
+            #print("loss_critic :",-float(torch.mean(critic_real)- torch.mean(critic_fake)) ,"gradient penalty :",float(LAMBDA_GP*gp))
             # Keep track of the average critic loss in this batch
             mean_iteration_critic_loss += loss_critic.item() / CRITIC_ITERATIONS
             # Optimizer zero grad to zero out any previously accumulated gradients
             critic.zero_grad()
             # Perform backpropagation
             loss_critic.backward(retain_graph=True) # True, able to reuse
-            '''
-            #Weight clippling # add this to restrict the gradients to prevent them from becoming too large
-            if LAMBDA_GP ==0:
-                for p in critic.parameters():
-                    p.data.clamp_(-0.001, 0.001)
-            '''
             # Optimizer step to update model parameters
             opt_critic.step()       
             del(fake)
         critic_losses += [mean_iteration_critic_loss]
-            
+           
 
         ########## Train Generator: min -E[critic(gen_fake)] ##########
         ###############################################################
@@ -151,12 +134,9 @@ def train_step(gen,
         # Print losses occasionally and print to tensorboard
         print(f" Batch {batch_idx}/{len(train_loader)} \
                     Loss critic: {mean_iteration_critic_loss:.4f}, loss generator: {loss_gen:.4f}")           
-        print(f"Train passing rate(1%) :{batch_passing_rates}") 
+        #print(f"Train passing rate(1%) :{batch_passing_rates}") 
         if  batch_idx == 0: # To change to some number
             with torch.no_grad():
-                #print(f'add image to tensor board for step {step_real}')
-                #step_real = plot_dosemap(real, writer_real, step_real)# step to see the progression
-                #step_fake = plot_dosemap(fake_2, writer_fake, step_fake)
                 plot_data(real.detach().cpu(), fake_2.detach().cpu(), data_name, log_dir)
                 plot_slice(real.detach().cpu(), fake_2.detach().cpu(),density_tensor.detach().cpu() ,data_name, log_dir)
 
@@ -166,10 +146,9 @@ def train_step(gen,
     epoch_loss_gen = sum(generator_losses)/len(generator_losses)
     epoch_loss_critic = sum(critic_losses)/len(critic_losses)
     epoch_passing_rate = sum(passing_rates)/len(passing_rates)
-    #writer_real.close()
-    #writer_fake.close()
 
-    return epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate #, step_real, step_fake
+
+    return epoch_loss_gen,  epoch_loss_critic, epoch_passing_rate 
 
 ###############################End of: def train_step ####################################################
     
@@ -206,10 +185,8 @@ def val_step(gen,
             # print(f"Processing val batch {batch_idx}")
             # send the input to the device
             real = real.to(device) 
-            print('real shape :', real.shape) 
             cond = cond.to(device) 
-            print('cond shape :', cond.shape) 
-  
+ 
             # Forward pass
             fake = gen(cond)
 

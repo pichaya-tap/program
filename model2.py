@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-
-class Critic3d(nn.Module):
+import torch.nn.functional as F
+'''
+class Critic3d_backup(nn.Module):
     """Creates the convolutional network
     
     Replicates critic network from https://arxiv.org/abs/2202.07077
@@ -28,8 +29,9 @@ class Critic3d(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
 
             nn.Conv3d(256, 1, kernel_size=1, stride =2, padding =0, bias=False),
-            nn.Flatten(),
             nn.Dropout3d(p=0.15),
+            nn.Flatten(),
+
             nn.Linear(8,1)
             
         )
@@ -38,32 +40,66 @@ class Critic3d(nn.Module):
         x = self.conv_stack(torch.cat([x, conditional_input], dim=1))      
         # Reshape the tensor to [N, 1]
         return x  
-    
+'''
+class Critic3d(nn.Module):
+    def __init__(self):
+        super(Critic3d, self).__init__()
+
+        self.conv_stack = nn.Sequential(
+            nn.Conv3d(3, 64, kernel_size=3, stride =2, padding =1, bias=False),
+            nn.SiLU(), #nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv3d(64, 128, kernel_size=3, stride =2, padding =1, bias=False),
+            nn.BatchNorm3d(128),
+            nn.SiLU(), #nn.LeakyReLU(0.2, inplace=True),
+            
+            nn.Conv3d(128, 256, kernel_size=3, stride =2, padding =1, bias=False),
+            nn.BatchNorm3d(256),
+            nn.SiLU(), #nn.LeakyReLU(0.2, inplace=True),
+
+            # Additional layers for gradual spatial reduction
+            nn.Conv3d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm3d(256),
+            nn.SiLU(), #nn.LeakyReLU(0.2, inplace=True),
+            nn.AvgPool3d(kernel_size=(2, 2, 2)),
+
+            # Final convolution layer to reduce channel to 1
+            nn.Conv3d(256, 1, kernel_size=(1, 1, 8), stride=1, padding=0, bias=False),
+            nn.Flatten(),
+
+            # Final linear layer
+            nn.Linear(1, 1)
+        )
+
+    def forward(self, x, conditional_input):
+        x = torch.cat([x, conditional_input], dim=1)
+        x = self.conv_stack(x)      
+        return x
+       
 import torch.nn.functional as F
 
-class Swish(nn.Module):
-    def __init__(self, beta=1.0):
-        super(Swish, self).__init__()
-        self.beta = beta
-
-    def forward(self, x):
-        return x * torch.sigmoid(self.beta * x)
 
 class Block(nn.Module):
     def __init__(self, in_c, out_c):
         super().__init__()
         self.conv1 = nn.Conv3d(in_c, out_c, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm3d(out_c)
-        self.relu = nn.ReLU()
+        self.swish1 = nn.SiLU()  
         self.conv2 = nn.Conv3d(out_c, out_c, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm3d(out_c)
-        self.silu = nn.SiLU()
+        self.swish2 = nn.SiLU()  
         self.dropout = nn.Dropout3d(p=0.15)
 
     def forward(self, x):
-        return self.dropout(self.silu(self.bn2(self.conv2(self.silu(self.bn1(self.conv1(x)))))))
-    
-  
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.swish1(x)  
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.swish2(x)  
+        x = self.dropout(x)
+        return x
+
 
 class Encoder(nn.Module):
     def __init__(self, channels=(2, 16, 32, 64)):
@@ -89,7 +125,7 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, channels=(128, 64, 32, 16)):
+    def __init__(self, channels=(64, 32, 16)):
         super().__init__()
         self.channels = channels
         self.up = nn.ModuleList(
@@ -103,8 +139,10 @@ class Decoder(nn.Module):
         for i in range(len(self.channels) - 1):
 			# pass the inputs through the upsampler blocks
             x = self.up[i](x)
+            #print('x',x.shape)
 			# crop the current features from the encoder blocks,
             encFeat = self.crop(encFeatures[i], x)
+            #print('encFeat',encFeat.shape)
 			# concatenate them with the current upsampled features,
             x = torch.cat([x, encFeat], dim=1)
 			# and pass the concatenated output through the current decoder block
@@ -129,55 +167,43 @@ class Decoder(nn.Module):
         return cropped_features
 
 
-class Generator(nn.Module):
-    """Creates the U-Net Architecture
-    
-    Replicates conditional GAN with a Wasserstein loss function and a Gradient
-    Penalty term from https://arxiv.org/abs/2202.07077
 
-    Returns:
-        A batch of 3D matrix of energy depositions of size [BATCHSIZE*1*16*16*128]
-    """
-    def __init__(self, encChannels=(2, 16, 32, 64)):
-        decChannels=(128,64, 32, 16)
+
+class Generator(nn.Module):
+    def __init__(self, encChannels=(2, 16, 32, 64), decChannels=(64, 32, 16), nbClasses=1, retainDim=True, outSize=(16,16,128)):
         super().__init__()
-		# initialize the encoder and decoder
+        # initialize the encoder and decoder
         self.encoder = Encoder(encChannels)
         self.decoder = Decoder(decChannels)
+        # initialize the regression head for 3D output
+        self.head = nn.Conv3d(decChannels[-1], nbClasses, 1)
+        self.retainDim = retainDim
+        self.outSize = outSize
 
-        """ Bottleneck """
-        self.b = Block(164, 128) #add 100 dimension for noise 
-
-        """ Classifier """
-        self.outputs = nn.Sequential(
-                            nn.Conv3d(16, 1, kernel_size=1, padding=0), 
-                            nn.Sigmoid(), #output range[0,1]
-        )
-
-    def forward(self, x, noise=None):
-        b, encFeatures = self.encoder(x)
-        # Concatenate input tensor and noise tensor along the channel dimension (dim=1)
-        # Check if noise is provided, else generate random noise
-        if noise is None:
-            print("noise is not given")
-            noise = torch.randn((x.shape[0], 100, b.shape[2], b.shape[3], b.shape[4]), device=b.device)
-
-        add_noise = torch.cat([b,noise],dim=1)
-        print("noise {}".format(add_noise.shape))
-        b = self.b(add_noise) 
-        #print("bottleneck with noise {}".format(b.shape))
-        # pass the encoder features through decoder making sure that
-		# their dimensions are suited for concatenation
-        decFeatures = self.decoder(b, encFeatures[::-1][0:])
-
-        return self.outputs(decFeatures)
-
+    def forward(self, x):
+        # grab the features from the encoder
+        b, enc_features = self.encoder(x)
+        #print('after encoder b ',b.shape)
+        #print('after encoder enc_features ', enc_features[::-1][0].shape)
+        dec_features = self.decoder(b, enc_features[::-1][1:])
+        output = self.head(dec_features)
+        # check to see if we are retaining the original output
+        # dimensions and if so, then resize the output to match them
+        if self.retainDim:
+            output = F.interpolate(output, self.outSize, mode='trilinear', align_corners=False)
+        # Apply sigmoid activation to constrain values between 0 and 1
+        output = torch.sigmoid(output)
+        return output
 
 def initialize_weights(model):
     for m in model.modules():
-        if isinstance(m, (nn.Conv3d, nn.ConvTranspose3d, nn.BatchNorm3d)):
-            m.weight.data = torch.randn(m.weight.data.shape)
+        if isinstance(m, (nn.Conv3d, nn.ConvTranspose3d)):
             nn.init.normal_(m.weight.data, 0.0, 0.02)
+            if m.bias is not None:
+                m.bias.data.zero_()
+        elif isinstance(m, nn.BatchNorm3d):
+            nn.init.normal_(m.weight.data, 1.0, 0.02)
+            nn.init.constant_(m.bias.data, 0)
 
 
 def gradient_penalty(critic, real, fake, cond, device):
