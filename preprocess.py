@@ -96,7 +96,7 @@ def extract_roi_array(image, roi_size, center_physical):
     return sitk.GetArrayFromImage(roi) 
 
 
-dataset = '7'
+dataset = '1'
 
 data_folder = '/scratch/tappay01/data/data{}'.format(dataset)
 data_files = glob.glob(os.path.join(data_folder, "*.npy"))  

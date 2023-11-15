@@ -2,45 +2,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F
-'''
-class Critic3d_backup(nn.Module):
-    """Creates the convolutional network
-    
-    Replicates critic network from https://arxiv.org/abs/2202.07077
-    consisting of six consecutive transposed 3D convolutions.
 
-    Returns:
-        A float as continuous and quantitative rating"""
-    
-    def __init__(self):
-        super(Critic3d, self).__init__()
-
-        self.conv_stack = nn.Sequential(
-            nn.Conv3d(3, 64, kernel_size=3, stride =2, padding =1, bias=False),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv3d(64, 128, kernel_size=3, stride =2, padding =1, bias=False),
-            nn.BatchNorm3d(128),
-            nn.LeakyReLU(0.2, inplace=True),
-            #nn.Dropout3d(p=0.15),
-
-            nn.Conv3d(128, 256, kernel_size=3, stride =2, padding =1, bias=False),
-            nn.BatchNorm3d(256),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv3d(256, 1, kernel_size=1, stride =2, padding =0, bias=False),
-            nn.Dropout3d(p=0.15),
-            nn.Flatten(),
-
-            nn.Linear(8,1)
-            
-        )
-
-    def forward(self, x, conditional_input ):
-        x = self.conv_stack(torch.cat([x, conditional_input], dim=1))      
-        # Reshape the tensor to [N, 1]
-        return x  
-'''
 class Critic3d(nn.Module):
     def __init__(self):
         super(Critic3d, self).__init__()
@@ -102,8 +64,9 @@ class Block(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, channels=(2, 16, 32, 64)):
+    def __init__(self, channels=(2, 16, 32, 64), noise_dim=100):
         super().__init__()
+        self.noise_dim = noise_dim
         self.enc_block = nn.ModuleList(
             [Block(channels[i], channels[i+1])
                 for i in range(len(channels) - 1)])
@@ -120,17 +83,20 @@ class Encoder(nn.Module):
             x = block(x)
             block_outputs.append(x)
             x = self.pool(x)
+        # Generate noise and concatenate it with the bottleneck features
+        noise = torch.randn(x.shape[0], self.noise_dim, *x.shape[2:], device=x.device)
+        x = torch.cat([x, noise], dim=1)
 		# return the list containing the intermediate outputs
         return x, block_outputs
 
 
 class Decoder(nn.Module):
-    def __init__(self, channels=(64, 32, 16)):
+    def __init__(self, channels=(64, 32, 16), noise_dim=100):
         super().__init__()
-        self.channels = channels
+        self.channels = [164,32,16]
         self.up = nn.ModuleList(
-			[nn.ConvTranspose3d(channels[i], channels[i + 1], kernel_size=2, stride=2, padding=0)
-			 	for i in range(len(channels) - 1)])
+			[nn.ConvTranspose3d(self.channels[i], self.channels[i + 1], kernel_size=2, stride=2, padding=0)
+			 	for i in range(len(self.channels) - 1)])
         self.dec_blocks = nn.ModuleList(
 			[Block(channels[i], channels[i + 1])
 			 	for i in range(len(channels) - 1)])
@@ -145,8 +111,10 @@ class Decoder(nn.Module):
             #print('encFeat',encFeat.shape)
 			# concatenate them with the current upsampled features,
             x = torch.cat([x, encFeat], dim=1)
+            # x.shape = [32,64,4,4,32]
 			# and pass the concatenated output through the current decoder block
             x = self.dec_blocks[i](x)
+            #print('final decoder output ',x.shape)
 		# return the final decoder output
         return x
     
@@ -173,8 +141,8 @@ class Generator(nn.Module):
     def __init__(self, encChannels=(2, 16, 32, 64), decChannels=(64, 32, 16), nbClasses=1, retainDim=True, outSize=(16,16,128)):
         super().__init__()
         # initialize the encoder and decoder
-        self.encoder = Encoder(encChannels)
-        self.decoder = Decoder(decChannels)
+        self.encoder = Encoder(encChannels, noise_dim=100)
+        self.decoder = Decoder(decChannels, noise_dim=100)
         # initialize the regression head for 3D output
         self.head = nn.Conv3d(decChannels[-1], nbClasses, 1)
         self.retainDim = retainDim
@@ -248,12 +216,11 @@ def gradient_penalty(critic, real, fake, cond, device):
 import torchinfo    
 from torchinfo import summary
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-gen = Generator(encChannels=(2, 16, 32, 64)).to(device)
+gen = Generator(encChannels=(2, 16, 32, 64),decChannels=(64, 32, 16)).to(device)
 initialize_weights(gen)
 critic = Critic3d().to(device)
 initialize_weights(critic)
 
-noise = torch.randn((32,100,2,2,16)).to(device) #Will be fed to generator's bottle neck
 summary(gen, input_size=[(32,2,16,16,128)]) # do a test pass through of an example input size 
-summary(critic, input_size=[(32,1,16,16,128),(32,2,16,16,128)])
+#summary(critic, input_size=[(32,1,16,16,128),(32,2,16,16,128)])
 '''

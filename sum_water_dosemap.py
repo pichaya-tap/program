@@ -17,13 +17,6 @@ def main(argv):
         else:
             print('Unknown Argument!')
 
-    #####################################Refer to "'notes_dicom_images.txt"########################################################
-    DATASET = 'DATASET'
-    POSITIONY = [-50, -25, 0.1, 25, 50, 75]  
-    POSITIONZ = [-146.5, -121.5, -96.5, -71.5, -46.5] 
-    POSITION = itertools.product(POSITIONY, POSITIONZ)
-
-    
     PHANTOM_SIZE = 400
     DELTA_X = 2.5 #mm
     DELTA_Y = 0.707031*2
@@ -33,41 +26,22 @@ def main(argv):
     #+1 weil ich in der Simu aufgerundet habe und int abrundet...
     VOXELNUMBER_Y = int(PHANTOM_SIZE/DELTA_Y)+1
     VOXELNUMBER_Z = int(PHANTOM_SIZE/DELTA_Z)+1
-    
-    for positiony, positionz in POSITION:
-        start_time = time.time()  # Record the start time 
-        # create empty array to collect the sum of dosemaps, file name and path for saving
-        dosemap_sum = np.zeros(shape=(VOXELNUMBER_Z, VOXELNUMBER_Y, VOXELNUMBER_X))
-        filename_sum = '{}_{}_{}_{}.npy'.format(DATASET, ENERGY, positiony, positionz) 
-        save_path = '/scratch/tappay01/watersimulation/{}'.format(DATASET)
-        output_path = os.path.join(save_path, filename_sum)
-        
-        # check if the target file exists already, skip
-        if os.path.exists(output_path):
-            print(f"Warning: File '{output_path}' already exists. Skipping calculation.")
-            continue  
-        count =0
-        for i in range(25): 
-            filename = '{}_t{}_{}_{}.npy'.format(ENERGY,i,positiony,positionz)
-            file_path = os.path.join(save_path, filename)
-            #TO DO...if file exist # Add current dosemap to the overall dosemap
-            if os.path.exists(file_path):
-                dosemap_sum += np.load(file_path)
-                count +=1
-            else:
-                print('warning: file missing at t{}'.format(i))
-                continue
-        
-        # Save the overall dose map 
-             
-        if count == 25:
-            np.save(output_path, dosemap_sum)
-            print('{} file saved successfully'.format(filename_sum))
-            end_time = time.time()  # Record the end time
-            elapsed_time = end_time - start_time  # Calculate the elapsed time in seconds
-            print(f"Time taken for sum up files: {elapsed_time} seconds")
-        else:
-            print('files are not complete')
+    directory_path = '/scratch/tappay01/watersimulation/DATASET/'
+    # Get a list of files matching the pattern "output_nt_Hits_t*.csv"
+    file_pattern = os.path.join(directory_path, "4250*.npy")
+    inputfiles = glob.glob(file_pattern)
+    dosemap_sum = np.zeros(shape=(VOXELNUMBER_X, VOXELNUMBER_Y, VOXELNUMBER_Z))
+    # create empty array to collect the sum of dosemaps, file name and path for saving
+    filename_sum = 'DATASET_{}.npy'.format(ENERGY)
+    output_path = os.path.join(directory_path, filename_sum)
+
+    for file in inputfiles:
+        print(f"Sum file {file} ")
+        dosemap_sum += np.load(file)
+
+    # Save the overall dose map        
+    np.save(output_path, dosemap_sum)
+    print('{} file saved successfully'.format(filename_sum))   
 
 
 if __name__ == "__main__":

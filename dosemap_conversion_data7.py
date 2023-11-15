@@ -28,7 +28,7 @@ save_path = '/scratch/tappay01/data/data7'
 
 # Iterate through files in the folder
 for filename in os.listdir(directory_path):
-    if filename.endswith('.out') and filename.startswith('Data7'):
+    if filename.endswith('.out') and filename.startswith('Data7_2500MeV_75Mm_-96.5Mm'):
         # Start the timer
         start_time = time.time()
         # Construct the input and output file paths

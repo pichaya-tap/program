@@ -160,7 +160,7 @@ for e in tqdm(range(NUM_EPOCHS)):
     # Save Model when new high validation passing rate is found
     if all(val_passing_rate > rate for rate in results["val_passing_rate"]):
         print(f"[INFO] Found new high passing rate. Saving model to: {log_dir}")
-        model_name = f"model_epoch{e}.pth"
+        model_name = f"highest passing rate model_epoch{e}.pth"
         # Save the model state_dict()
         torch.save(obj=gen.state_dict(),f=target_dir_path/model_name) 
     
@@ -191,10 +191,17 @@ plt.clf()
 
 
 # Plot passing rate per epoch
+# Find the highest value and its index
+highest_value = max(results["val_passing_rate"])
+highest_index = results["val_passing_rate"].index(highest_value)
+# Plot passing rate per epoch
 plt.figure(figsize=(10,5))
 plt.title("Passing Rate During Training")
-plt.plot(results["epoch_passing_rate"],label="train_passing_rate")
-plt.plot(results["val_passing_rate"],label="val_passing_rate")
+plt.plot(results["epoch_passing_rate"], label="train_passing_rate")
+plt.plot(results["val_passing_rate"], label="val_passing_rate")
+# Mark the highest value
+plt.scatter(highest_index, highest_value, color='red') # Mark with a red dot
+plt.text(highest_index, highest_value, f' Max: {highest_value}', color='red') # Annotate the point
 plt.xlabel("number of epoch")
 plt.ylabel("Passing rate")
 plt.legend()
