@@ -15,12 +15,6 @@ speed of dose calculation can lead to better treatment planning and better outco
 To develop, train and test a WGAN network for faster calculation of dose maps in treatment plans of 
 carbon ion cancer therapy using DICOM images and Monte Carlo (MC) simulated dose maps.
 
-# LITERATURE
-
-Mentzel et al. , Fast and accurate dose predictions for novel radiotherapy treatments in 
-heterogeneous phantoms using conditional 3D-UNet generative adversarial networks
-https://arxiv.org/abs/2202.07077
-
 # METHOD
 
 Simulated dataset is already available from MC simulation and digital head phantoms, which are  
@@ -29,7 +23,7 @@ Simulated dataset is already available from MC simulation and digital head phant
     • 3D representation of a material density matrix of phantom  
        
 Investigating WGAN model training strategies and optimization of the network.
-Use delta index and passing rate (1%) for model’s performance measurement of the prediction quality 
+Use MSE, passing rate (1% and 3%) for model’s performance measurement of the prediction quality 
 
 # MODEL ARCHITECTURE
 
@@ -50,4 +44,8 @@ The Critic network structure is simple 3D convolutional network. It receives bot
 activated using the Swish function, regularized using dropout with a rate of 15%
 The last single linear unit gives a continuous and quantitative rating distinguishing simulated from generated samples 
 
+# LITERATURE
 
+Mentzel et al. , Fast and accurate dose predictions for novel radiotherapy treatments in 
+heterogeneous phantoms using conditional 3D-UNet generative adversarial networks
+https://arxiv.org/abs/2202.07077
